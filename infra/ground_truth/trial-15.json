@@ -1,0 +1,23 @@
+{
+  "shared-eval|frontend|shared-eval|productcatalogservice": true,
+  "shared-eval|frontend|shared-eval|currencyservice": true,
+  "shared-eval|frontend|shared-eval|cartservice": true,
+  "shared-eval|frontend|shared-eval|checkoutservice": true,
+  "shared-eval|frontend|shared-eval|shippingservice": true,
+  "shared-eval|frontend|shared-eval|recommendationservice": true,
+  "shared-eval|frontend|shared-eval|adservice": true,
+  "shared-eval|checkoutservice|shared-eval|productcatalogservice": true,
+  "shared-eval|checkoutservice|shared-eval|cartservice": true,
+  "shared-eval|checkoutservice|shared-eval|currencyservice": true,
+  "shared-eval|checkoutservice|shared-eval|shippingservice": true,
+  "shared-eval|checkoutservice|shared-eval|paymentservice": true,
+  "shared-eval|checkoutservice|shared-eval|emailservice": true,
+  "shared-eval|cartservice|shared-eval|redis-cart": true,
+  "shared-eval|recommendationservice|shared-eval|productcatalogservice": true,
+  "shared-eval|checkoutservice|shared-eval|frontend": false,
+  "shared-eval|adservice|shared-eval|redis-cart": true,
+  "shared-eval|paymentservice|shared-eval|recommendationservice": true,
+  "shared-eval|paymentservice|shared-eval|emailservice": true,
+  "shared-eval|cartservice|shared-eval|currencyservice": false,
+  "shared-eval|grafana|shared-eval|emailservice": false
+}

@@ -52,9 +52,11 @@ CREATE TABLE IF NOT EXISTS agent_rounds (
     run_id TEXT NOT NULL,
     iteration INTEGER NOT NULL,
     reasoning TEXT,
+    reasoning_injection_flagged INTEGER NOT NULL DEFAULT 0,
     stance_updates TEXT,
     new_hypotheses TEXT,
     action TEXT,
+    system_notices TEXT,
     stopped_by TEXT,
     stop_reason TEXT,
     timestamp REAL NOT NULL,
@@ -208,15 +210,26 @@ class Storage:
         *,
         stopped_by: Optional[str],
         stop_reason: Optional[str],
+        reasoning_injection_flagged: bool = False,
+        system_notices: Optional[List[str]] = None,
     ) -> None:
+        """reasoning_injection_flagged/system_notices — DASHBOARD_DESIGN.md mục 3
+        (Category B): trước đây `check_injection(model_output.reasoning)` chỉ dùng
+        `.text` để làm sạch reasoning, `.flagged` bị bỏ luôn (không cách nào biết
+        SAU NÀY một round từng bị flag injection hay không); tương tự,
+        `pending_notices` chỉ dùng để nhắc round SAU trong context, chưa bao giờ
+        được lưu lại cho chính round đã sinh ra chúng. 2 cột này lấp đúng 2 khoảng
+        trống đó — không đổi hành vi runtime của Brain, chỉ thêm ghi log."""
         self._conn.execute(
-            "INSERT INTO agent_rounds (run_id, iteration, reasoning, stance_updates, "
-            "new_hypotheses, action, stopped_by, stop_reason, timestamp) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO agent_rounds (run_id, iteration, reasoning, "
+            "reasoning_injection_flagged, stance_updates, new_hypotheses, action, "
+            "system_notices, stopped_by, stop_reason, timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 run_id,
                 iteration,
                 model_output.reasoning,
+                int(reasoning_injection_flagged),
                 json.dumps(
                     [su.__dict__ for su in model_output.stance_updates], ensure_ascii=False
                 ),
@@ -224,6 +237,7 @@ class Storage:
                     [nh.__dict__ for nh in model_output.new_hypotheses], ensure_ascii=False
                 ),
                 model_output.action,
+                json.dumps(system_notices or [], ensure_ascii=False),
                 stopped_by,
                 stop_reason,
                 time.time(),

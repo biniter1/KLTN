@@ -79,6 +79,48 @@ def _pick_config_evidence_for_potential(
     return clean[0] if clean else config_evidence_list[0]
 
 
+def _build_potential_only_result(cand, snapshot_id: str) -> DependencyEdgeResult:
+    """Nhánh NOT_OBSERVED thuần túy (mục 5) — cặp CHỈ có trong C_potential (config
+    evidence), chưa từng có traffic thật. Tách thành hàm riêng (thay vì inline trong
+    `run_tier1`) để `baseline.py` (mục 13.1/13.2) tái dùng NGUYÊN VẸN — 2 baseline B1/B2
+    chỉ thay phần quyết định cho cặp CÓ traffic (observed), còn nhánh này giữ y hệt Tier 1
+    thật để "phần không đổi không làm nhiễu phép so sánh" (mục 13.1/13.2)."""
+    ev = _pick_config_evidence_for_potential(cand.config_evidence)
+    decision = derive_status_potential_only([e.config_finding for e in cand.config_evidence])
+
+    # identity_key gần đúng: protocol/port có thể chưa biết (mục 1: C_potential chỉ có (source,dest))
+    identity_key = IdentityKey(
+        source_namespace=ev.source_namespace,
+        source_canonical_service=ev.source_canonical_service,
+        source_service_account=ev.source_service_account,
+        destination_namespace=ev.destination_namespace,
+        destination_canonical_service=ev.destination_canonical_service,
+        protocol=(ev.protocol or "UNKNOWN"),
+        port=ev.port,
+    )
+
+    return DependencyEdgeResult(
+        identity_key=identity_key,
+        destination_service_ref=None,  # chưa có traffic -> chưa cần resolve Service thật (mục 3b chỉ chạy cho STRONG)
+        scope=ev.scope,
+        traffic_class=TrafficClass.UNKNOWN,  # không có traffic để phân loại
+        count=0,
+        distinct_days=0,
+        error_ratio=0.0,
+        unstable=False,
+        config_finding=ev.config_finding,
+        score=None,
+        dependency_status=decision.status,
+        snapshot_id=snapshot_id,
+        workload_revision=None,
+        previous_status=None,  # nhánh này không dùng hysteresis (không qua sigmoid)
+        unstable_classification=False,
+        needs_human_review=decision.needs_human_review,
+        escalate_to_tier2=decision.escalate_to_tier2,
+        escalation_reason=decision.escalation_reason,
+    )
+
+
 def _build_dns_result(
     agg: TrafficAggregate,
     config: ScoringConfig,
@@ -200,41 +242,7 @@ def run_tier1(
                 results.append(result)
 
         elif cand.is_potential_only:
-            ev = _pick_config_evidence_for_potential(cand.config_evidence)
-            decision = derive_status_potential_only([e.config_finding for e in cand.config_evidence])
-
-            # identity_key gần đúng: protocol/port có thể chưa biết (mục 1: C_potential chỉ có (source,dest))
-            identity_key = IdentityKey(
-                source_namespace=ev.source_namespace,
-                source_canonical_service=ev.source_canonical_service,
-                source_service_account=ev.source_service_account,
-                destination_namespace=ev.destination_namespace,
-                destination_canonical_service=ev.destination_canonical_service,
-                protocol=(ev.protocol or "UNKNOWN"),
-                port=ev.port,
-            )
-
-            result = DependencyEdgeResult(
-                identity_key=identity_key,
-                destination_service_ref=None,  # chưa có traffic -> chưa cần resolve Service thật (mục 3b chỉ chạy cho STRONG)
-                scope=ev.scope,
-                traffic_class=TrafficClass.UNKNOWN,  # không có traffic để phân loại
-                count=0,
-                distinct_days=0,
-                error_ratio=0.0,
-                unstable=False,
-                config_finding=ev.config_finding,
-                score=None,
-                dependency_status=decision.status,
-                snapshot_id=snapshot_id,
-                workload_revision=None,
-                previous_status=None,  # nhánh này không dùng hysteresis (không qua sigmoid)
-                unstable_classification=False,
-                needs_human_review=decision.needs_human_review,
-                escalate_to_tier2=decision.escalate_to_tier2,
-                escalation_reason=decision.escalation_reason,
-            )
-            results.append(result)
+            results.append(_build_potential_only_result(cand, snapshot_id))
 
     # DNS — auto-allow, ghi nhận riêng (mục 7)
     for agg in dns_aggregates.values():

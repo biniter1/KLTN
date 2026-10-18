@@ -20,15 +20,16 @@ chỉ dùng thư viện chuẩn Python. `pip install -r requirements.txt` chỉ 
 ```bash
 cd tier1_inference
 pip install pytest pytest-cov   # chỉ cần cho test, lõi pipeline không cần
-python3 -m pytest -q                                   # 95 test
-python3 -m pytest --cov=tier1 --cov-report=term-missing # kèm coverage (~90%)
+python3 -m pytest -q                                   # 181 test
+python3 -m pytest --cov=tier1 --cov-report=term-missing # kèm coverage (~93%)
 ```
 
-95 test, phủ toàn bộ 8 module lõi (`schema` gián tiếp qua các module dùng nó). Phần
-chưa cover chủ yếu là `selector_validation.KubernetesSelectorValidator` (cần cluster
-K8s thật để chạy, không test được trong môi trường không có cluster — `MockSelectorValidator`
-dùng cho phần còn lại được test đầy đủ) và vài nhánh guard hiếm khi chạy (`config.py`
-`to_json`/`from_json`, một số early-return phòng thủ).
+181 test, phủ toàn bộ 13 module (`schema` gián tiếp qua các module dùng nó). Phần
+chưa cover chủ yếu là các lớp gọi API thật cần hạ tầng thật để chạy — không test được
+trong môi trường không có cluster/Prometheus: `selector_validation.KubernetesSelectorValidator`,
+`config_collector.KubernetesReader`, `traffic_collector.HttpPrometheusClient` (bản
+Fake/Mock dùng cho phần còn lại được test đầy đủ) — cùng vài nhánh guard hiếm khi chạy
+(`config.py` `to_json`/`from_json`, một số early-return phòng thủ).
 
 ## Cấu trúc code ↔ mục trong TIER1_DESIGN.md
 
@@ -45,6 +46,11 @@ dùng cho phần còn lại được test đầy đủ) và vài nhánh guard hi
 | `tier1/selector_validation.py` | mục 3b | 4 bước validate trước khi cho enforce; `SelectorValidator` pluggable (điểm flex #3) |
 | `tier1/storage.py` | mục 10, 11 (TIER2_DESIGN.md) | SQLite WAL, bảng `dependency_evidence`, previous_status cho hysteresis |
 | `tier1/pipeline.py` | toàn bộ | `run_tier1()` — nối các bước theo đúng thứ tự |
+| `tier1/config_collector.py` | `CONFIG_EVIDENCE_COLLECTOR.md` mục 1-7 | Đọc env/envFrom/command/args + ConfigMap, giải mã 3 cấp cú pháp, đối chiếu ngược Service/Endpoints thật, canonical hóa identity → `ConfigEvidenceRecord` (C_potential, mục 1 TIER1_DESIGN.md). `K8sReader` pluggable: `FakeK8sReader` (test/demo) / `KubernetesReader` (thật, lib `kubernetes`) |
+| `tier1/traffic_collector.py` | `TRAFFIC_COLLECTION_PIPELINE.md` mục 1-6 | Query Prometheus (`increase()`, kiểm tra scrape gap qua `up{}`), gộp theo ngày để tính `distinct_days`/`last_seen_days_ago` → `TrafficSeries` (C_observed, mục 1 TIER1_DESIGN.md). `PrometheusClient` pluggable: `FakePrometheusClient` (test/demo) / `HttpPrometheusClient` (thật, HTTP API) |
+| `tier1/baseline.py` | mục 13.1, 13.2 | `run_baseline_b1()` (naive presence rule, baseline đối ngoại) / `run_baseline_b2()` (ngưỡng cứng cũ, ablation nội bộ) — tái dùng nguyên vẹn candidate discovery + nhánh NOT_OBSERVED của `pipeline.py`, chỉ thay quyết định cho cặp có traffic |
+| `tier1/evaluation.py` | mục 13.3 | `precision_recall_f1()`, `filter_ground_truth()` (2 lát cắt: traffic thưa, HEALTHCHECK/MONITORING), `mean_ci95()` (phân phối t), `wilcoxon_signed_rank()` (kiểm định bắt cặp) |
+| `tier1/experiment.py` | mục 13.3, `PROPOSAL.md` mục 7 | `run_experiment()` — chạy Tier 1 thật + B1 + B2 trên đúng cùng dữ liệu mỗi trial, tổng hợp `mean ± CI 95%` + Wilcoxon qua R trial độc lập |
 | `examples/simulate_data.py` | — | Dữ liệu giả lập Online Boutique, phủ đủ 5 trạng thái + DNS + EXTERNAL + NEEDS_MANUAL_SELECTOR |
 | `examples/run_example.py` | — | Chạy 2 snapshot liên tiếp, in báo cáo, demo hysteresis |
 
@@ -111,10 +117,28 @@ Tài liệu thiết kế mô tả pseudocode/công thức ở mức khái niệm
   mạnh suốt. Đây là lựa chọn có chủ đích (an toàn hơn: một vấn đề selector chưa được người
   xử lý không nên tự động "quên đi" chỉ vì traffic vẫn cao), không phải bug.
 
-## Ngoài phạm vi (khớp mục 12 TIER1_DESIGN.md)
+## Ranh giới của 2 module collector (`config_collector.py`, `traffic_collector.py`)
 
-Không có ở đây (và không nên có ở giai đoạn này): identity resolution thật từ K8s API
-(giả định traffic/config evidence đưa vào đã được collector resolve sẵn — xem
-`TRAFFIC_COLLECTION_PIPELINE.md`, `CONFIG_EVIDENCE_COLLECTOR.md`), sinh NetworkPolicy YAML
-thật (việc của Migration Planner, tiêu thụ `DependencyEdgeResult`), huấn luyện trọng số
-bằng dữ liệu thật (`fit_weights_logistic_regression` đã viết sẵn nhưng chưa gọi).
+Cả hai đọc/viết đúng schema mà `pipeline.py` đã tiêu thụ từ trước (`ConfigEvidenceRecord`,
+`TrafficSeries`) — không đổi gì ở tầng suy luận. Cả hai đều chạy được **không cần cluster/
+Prometheus thật** qua bản Fake (`FakeK8sReader`, `FakePrometheusClient`, xem
+`tests/test_config_collector.py`, `tests/test_traffic_collector.py`), nhưng bản THẬT
+(`KubernetesReader`, `HttpPrometheusClient`) cần 2 điều kiện hạ tầng chưa có trong môi
+trường demo này, ghi rõ trong docstring từng file:
+
+- `traffic_collector.py` giả định Istio Telemetry API đã được cấu hình để export 2 nhãn
+  tùy chỉnh (`test_harness` cho provenance mục 3, `request_path` cho phân loại HEALTHCHECK
+  mục 2 TIER1_DESIGN.md) — Istio KHÔNG tự phơi 2 nhãn này ra `istio_requests_total` theo
+  mặc định. Thiếu nhãn không làm pipeline lỗi (`is_injected=False`/`path=None`), chỉ mất
+  tín hiệu tương ứng.
+- `config_collector.py` không đọc `Secret` (tránh RBAC đọc Secret cluster-wide, đúng
+  quyết định đã chốt mục 3 tài liệu) — dependency chỉ khai qua Secret sẽ rơi vào `NOT_FOUND`,
+  không gây hại (nguyên tắc open-world).
+
+## Ngoài phạm vi (khớp mục 12 TIER1_DESIGN.md, mục 8 CONFIG_EVIDENCE_COLLECTOR.md)
+
+Sinh NetworkPolicy YAML thật (việc của Migration Planner, tiêu thụ `DependencyEdgeResult`),
+huấn luyện trọng số bằng dữ liệu thật (`fit_weights_logistic_regression` đã viết sẵn nhưng
+chưa gọi), `Secret`/`NetworkPolicy` hiện có/`Ingress`/headless Service làm nguồn bằng chứng
+config (mục 3 `CONFIG_EVIDENCE_COLLECTOR.md`), DNS traffic collection (xử lý riêng, ngoài
+2 module này — xem mục 7 TIER1_DESIGN.md).

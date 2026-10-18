@@ -1,0 +1,65 @@
+# kind cluster cho thí nghiệm R=15 trial song song — 1 control-plane + 2 worker.
+#
+# LƯU Ý quan trọng: mỗi kind "node" chỉ là 1 container Docker trên CÙNG máy vật lý —
+# dùng nhiều node ở đây KHÔNG cấp thêm CPU/RAM thật, mục đích DUY NHẤT là né giới hạn
+# mặc định "maxPods=110/node" của kubelet. Online Boutique có ~11 Deployment; chạy N
+# trial song song (mỗi trial 1 namespace) cần ~11*N pod — với N=4 đã là 44 pod, N=15 là
+# 165 pod, vượt trần 110 của 1 node đơn. Cấu hình dưới đây vừa tăng maxPods vừa chia
+# thành 3 node để có biên an toàn, nhưng tài nguyên thật vẫn bị giới hạn bởi RAM/CPU
+# Docker Desktop đã cấp cho WSL2 (xem README phần sizing) — tăng số node ở đây KHÔNG
+# thay thế được việc tăng RAM thật.
+#
+# GHIM CỨNG node image = Kubernetes v1.32.11 (KHÔNG để trống/mặc định theo bản `kind` CLI
+# đang cài trên máy, và KHÔNG chỉ cần ">=1.31" như tưởng ban đầu -- xem giải thích dưới).
+#
+# Lịch sử phát hiện thật (chạy trên máy Bin, 2026-09-27):
+#   1) Ban đầu để trống `image:` -> `kind` (bản CLI cũ v0.23.0 có sẵn) tự chọn Kubernetes
+#      v1.30.0 -> cài Gateway API v1.6.0 CRD (bắt buộc để tạo waypoint, xem 03_install_istio.sh)
+#      lỗi "undeclared reference to 'isIP'" (CRD `TLSRoute` dùng CEL `isIP()`).
+#   2) Ghim `v1.31.14` (tưởng ">=1.31 là đủ", theo issue kubernetes-sigs/gateway-api#4450) ->
+#      vẫn lỗi tiếp, lần này "undeclared reference to 'format'" (CRD `XBackend` dùng CEL
+#      `format.dns1123Label()`). Tra tận gốc source Kubernetes
+#      (`k8s.io/apiserver/pkg/cel/environment/base.go`, xác nhận trên CẢ nhánh release-1.31):
+#      `library.IP` có từ 1.30, nhưng `library.Format` chỉ "IntroducedVersion: 1.31" --
+#      TƯỞNG là 1.31 sẽ có, nhưng môi trường CEL dùng để validate CRD MẶC ĐỊNH dùng
+#      `DefaultCompatibilityVersion()` = phiên bản HIỆN TẠI TRỪ 1 ("n-1", để CEL rule portable
+#      qua nhiều bản trong lúc rolling upgrade HA control-plane -- xem doc chính thức
+#      `pkg.go.dev/k8s.io/apiserver/pkg/cel/environment`, hàm `DefaultCompatibilityVersion`).
+#      Nghĩa là cluster chạy 1.31 thì môi trường CEL cư xử như đang ở 1.30 -> `Format`
+#      (introduced@1.31) CHƯA được bật, dù `IP` (introduced@1.30) đã bật.
+#   => Kết luận đã xác nhận: cần cluster chạy THẬT >=1.32 để n-1=1.31 thoả ngưỡng của
+#      `library.Format`. v1.32.11 chọn ở đây là bản THẤP NHẤT thoả điều kiện này, đồng thời
+#      nằm trong danh sách node image mà chính kind v0.31.0 công bố đã test cùng nhau (xem
+#      release notes kind v0.31.0) -- dùng kind CLI >=v0.31.0 (01_install_tools.sh đã cập
+#      nhật) để đảm bảo cặp kind-CLI/node-image này được kind tự bootstrap đúng.
+#   NẾU sau này gặp lại lỗi CEL "undeclared reference to '<tên hàm>'" ở 1 CRD khác (Gateway
+#   API ra bản mới hơn, hoặc CRD của chính Istio) -- áp DỤNG LẠI đúng quy tắc n-1 này: tra
+#   `IntroducedVersion` của hàm đó trong `base.go` (nhánh release tương ứng), rồi ghim node
+#   image = IntroducedVersion + 1 (không phải == IntroducedVersion).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.32.11
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            max-pods: "250"
+  - role: worker
+    image: kindest/node:v1.32.11
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            max-pods: "250"
+  - role: worker
+    image: kindest/node:v1.32.11
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            max-pods: "250"

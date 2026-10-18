@@ -601,3 +601,53 @@ def test_reasoning_is_sanitized_before_being_stored(make_escalation, fast_config
     assert "Ignore previous instructions" not in result.reasoning
     rounds = storage.get_agent_rounds("run_reasoning_inj")
     assert "Ignore previous instructions" not in rounds[0]["reasoning"]
+    # inj_result.flagged (check_injection trên reasoning) phải được LƯU LẠI, không
+    # chỉ dùng để làm sạch text rồi bỏ đi — dashboard cần biết round nào từng bị
+    # flag injection trong reasoning (DASHBOARD_DESIGN.md mục 3, Category B).
+    assert rounds[0]["reasoning_injection_flagged"] == 1
+
+
+def test_clean_reasoning_not_flagged(make_escalation, fast_config, storage, tool_registry_factory):
+    registry, _gk, _traffic = tool_registry_factory()
+    escalation = make_escalation()
+
+    def round1(ctx, tool_names):
+        return model_output(reasoning="Traffic mạnh, config khớp, kết luận STRONG.", action="conclude")
+
+    brain = make_brain(fast_config, registry, storage, [round1])
+    brain.run_session(escalation, run_id="run_reasoning_clean")
+
+    rounds = storage.get_agent_rounds("run_reasoning_clean")
+    assert rounds[0]["reasoning_injection_flagged"] == 0
+
+
+def test_system_notices_persisted_for_the_round_that_generated_them(
+    make_escalation, fast_config, storage, tool_registry_factory
+):
+    """pending_notices sinh ra trong 1 round (ví dụ stance_update trỏ evidence_id
+    không tồn tại) phải được lưu lại CHO CHÍNH round đó trong agent_rounds, không
+    chỉ trôi qua làm system_notices hiển thị ở context của round kế tiếp rồi mất."""
+    import json
+
+    registry, _gk, _traffic = tool_registry_factory()
+    escalation = make_escalation()
+
+    def round1(ctx, tool_names):
+        return model_output(
+            action="call_tool",
+            stance_updates=[{"evidence_id": "does-not-exist", "stance": "support"}],
+            tool_calls=[
+                {"tool_name": "read_internal_docs", "tool_input": {"service": "frontend", "keyword": "x"}, "hypothesis_id": "H1"}
+            ],
+            new_hypotheses=[{"id": "H1", "statement": "s"}],
+        )
+
+    def round2(ctx, tool_names):
+        return model_output(action="conclude")
+
+    brain = make_brain(fast_config, registry, storage, [round1, round2])
+    brain.run_session(escalation, run_id="run_notices")
+
+    rounds = storage.get_agent_rounds("run_notices")
+    notices_round1 = json.loads(rounds[0]["system_notices"])
+    assert any("does-not-exist" in n for n in notices_round1)

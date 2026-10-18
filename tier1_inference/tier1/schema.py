@@ -178,27 +178,68 @@ class TrafficSeries:
 
 
 # ---------------------------------------------------------------------------
-# Config evidence — CONFIG_EVIDENCE_COLLECTOR.md mục 6
+# Config evidence — CONFIG_EVIDENCE_COLLECTOR.md mục 6 (v2, LLM-assisted, 29/09/2026)
 # ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class EvidenceRef:
+    """1 nơi trong config trỏ tới cặp (source, dest) này — mục 6 `evidence_refs`.
+    Một cặp có thể có NHIỀU evidence_refs (nhiều biến/dòng config cùng trỏ 1 đích)."""
+
+    item_id: str
+    source_kind: str  # "env" | "envFrom" | "command" | "args" | "init_env" | "configmap_file" | "image_env" | ...
+    container: str
+    key: str
+    quote: str  # trích nguyên văn (mục 4.4a grounding) — rỗng cho baseline regex (không có bước grounding riêng)
+
 
 @dataclass
 class ConfigEvidenceRecord:
     source_namespace: str
     source_canonical_service: str
     source_service_account: str
-    destination_namespace: str
-    destination_canonical_service: str
+    destination_namespace: Optional[str]  # None CHỈ khi FOUND_UNRESOLVED không phân giải
+                                          # được identity đích thật (mục 6 v2 — JSON mẫu
+                                          # "null nếu FOUND_UNRESOLVED không phân giải
+                                          # được"). v1 (regex_baseline.py) KHÔNG BAO GIỜ
+                                          # trả None ở đây (luôn có fallback dest_namespace
+                                          # = namespace nguồn) nên không có record v1 nào
+                                          # bị ảnh hưởng — đây là mở rộng kiểu THÊM khả
+                                          # năng (str vẫn hợp lệ), không phải thu hẹp.
+    destination_canonical_service: Optional[str]  # cùng lý do -- xem comment destination_namespace
     destination_service_account: Optional[str]
     protocol: Optional[str]
-    port: Optional[int]  # None nếu port_unknown
+    port: Optional[int]  # None nếu port_unknown — Ý NGHĨA KHÔNG ĐỔI so với v1: đây là
+                         # port Tier 1 dùng để khớp với identity_key.port (traffic thật,
+                         # tức target_port — mục "Vì sao port phải lấy targetPort" của
+                         # CONFIG_EVIDENCE_COLLECTOR.md v2 mục 4.4d). KHÔNG đổi tên/ý
+                         # nghĩa field này để `pipeline.py::_pick_config_evidence` không
+                         # phải sửa gì (đúng cam kết "Tier 1 không phải sửa logic").
     port_unknown: bool
 
     config_finding: ConfigFinding
-    evidence_source: str  # "env" | "envFrom" | "command" | "args" | "configmap"
+    evidence_source: str  # "env" | "envFrom" | "command" | "args" | "configmap" | ... (xem EvidenceRef.source_kind)
     scope: Scope
 
     snapshot_id: str
     collected_at: str
+
+    # --- Mới ở v2 (mục 6) — THUẦN METADATA, Tier 1 (pipeline.py/scoring.py/candidates.py)
+    # KHÔNG đọc các field dưới đây, chỉ dùng cho traceability/dashboard/đánh giá (mục 9).
+    # Mặc định an toàn cho record do baseline regex (v1) sinh ra, vốn không có các khái
+    # niệm này. Thêm field ở CUỐI, toàn bộ có default, để không phá vỡ bất kỳ lệnh gọi
+    # `ConfigEvidenceRecord(...)` nào đã có (regex_baseline.py, test cũ).
+    destination_service_ref: Optional[ServiceRef] = None
+    raw_host: Optional[str] = None  # luôn có ở v2 — đích dùng khi chưa phân giải được (FOUND_UNRESOLVED)
+    service_port: Optional[int] = None  # port THEO CONFIG khai báo (trước khi map sang targetPort) — chỉ để truy vết
+    unresolved_reason: Optional[str] = None  # NO_BACKEND | SERVICE_NOT_FOUND | NO_MATCH | EXTERNAL_UNREGISTERED | ...
+    external_kind: Optional[str] = None  # SERVICE_ENTRY | EXTERNAL_NAME | SELECTORLESS_ENDPOINTS | ...
+    flags: Tuple[str, ...] = ()  # port_mismatch | port_inferred | dest_not_running | selector_overlap | via_virtualservice
+    evidence_refs: Tuple[EvidenceRef, ...] = field(default_factory=tuple)
+    extraction_method: str = "regex_baseline"  # "llm" | "regex_baseline"
+    prompt_version: Optional[str] = None
+    model_id: Optional[str] = None
+    run_id: Optional[str] = None
 
     def pair_key(self) -> Tuple[str, str, str, str]:
         return (

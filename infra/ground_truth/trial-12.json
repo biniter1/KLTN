@@ -1,0 +1,23 @@
+{
+  "shared-eval|frontend|shared-eval|productcatalogservice": true,
+  "shared-eval|frontend|shared-eval|currencyservice": true,
+  "shared-eval|frontend|shared-eval|cartservice": true,
+  "shared-eval|frontend|shared-eval|checkoutservice": true,
+  "shared-eval|frontend|shared-eval|shippingservice": true,
+  "shared-eval|frontend|shared-eval|recommendationservice": true,
+  "shared-eval|frontend|shared-eval|adservice": true,
+  "shared-eval|checkoutservice|shared-eval|productcatalogservice": true,
+  "shared-eval|checkoutservice|shared-eval|cartservice": true,
+  "shared-eval|checkoutservice|shared-eval|currencyservice": true,
+  "shared-eval|checkoutservice|shared-eval|shippingservice": true,
+  "shared-eval|checkoutservice|shared-eval|paymentservice": true,
+  "shared-eval|checkoutservice|shared-eval|emailservice": true,
+  "shared-eval|cartservice|shared-eval|redis-cart": true,
+  "shared-eval|recommendationservice|shared-eval|productcatalogservice": true,
+  "shared-eval|prometheus|shared-eval|cartservice": false,
+  "shared-eval|redis-cart|shared-eval|frontend": false,
+  "shared-eval|shippingservice|shared-eval|checkoutservice": true,
+  "shared-eval|emailservice|shared-eval|redis-cart": true,
+  "shared-eval|shippingservice|shared-eval|paymentservice": true,
+  "shared-eval|redis-cart|shared-eval|emailservice": false
+}

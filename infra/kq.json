@@ -1,0 +1,1009 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "creationTimestamp": "2026-10-01T14:54:46Z",
+                "labels": {
+                    "component": "apiserver",
+                    "provider": "kubernetes"
+                },
+                "name": "kubernetes",
+                "namespace": "default",
+                "resourceVersion": "196",
+                "uid": "dc064cae-4562-4cc8-a085-4ddbc7c94c58"
+            },
+            "spec": {
+                "clusterIP": "10.96.0.1",
+                "clusterIPs": [
+                    "10.96.0.1"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "https",
+                        "port": 443,
+                        "protocol": "TCP",
+                        "targetPort": 6443
+                    }
+                ],
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "creationTimestamp": "2026-10-01T14:55:50Z",
+                "labels": {
+                    "app": "istiod",
+                    "app.kubernetes.io/instance": "istio",
+                    "app.kubernetes.io/managed-by": "Helm",
+                    "app.kubernetes.io/name": "istiod",
+                    "app.kubernetes.io/part-of": "istio",
+                    "app.kubernetes.io/version": "1.31.1",
+                    "helm.sh/chart": "istiod-1.31.1",
+                    "install.operator.istio.io/owning-resource": "unknown",
+                    "install.operator.istio.io/owning-resource-namespace": "istio-system",
+                    "istio": "pilot",
+                    "istio.io/rev": "default",
+                    "operator.istio.io/component": "Pilot",
+                    "operator.istio.io/managed": "Reconcile",
+                    "operator.istio.io/version": "1.31.1",
+                    "release": "istio"
+                },
+                "name": "istiod",
+                "namespace": "istio-system",
+                "resourceVersion": "760",
+                "uid": "22708941-acdf-4519-b393-e2fe9e107583"
+            },
+            "spec": {
+                "clusterIP": "10.96.121.152",
+                "clusterIPs": [
+                    "10.96.121.152"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc-xds",
+                        "port": 15010,
+                        "protocol": "TCP",
+                        "targetPort": 15010
+                    },
+                    {
+                        "name": "https-dns",
+                        "port": 15012,
+                        "protocol": "TCP",
+                        "targetPort": 15012
+                    },
+                    {
+                        "name": "https-webhook",
+                        "port": 443,
+                        "protocol": "TCP",
+                        "targetPort": 15017
+                    },
+                    {
+                        "name": "http-monitoring",
+                        "port": 15014,
+                        "protocol": "TCP",
+                        "targetPort": 15014
+                    }
+                ],
+                "selector": {
+                    "app": "istiod",
+                    "istio": "pilot"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "creationTimestamp": "2026-10-01T14:56:22Z",
+                "labels": {
+                    "app": "istiod",
+                    "app.kubernetes.io/instance": "istio",
+                    "app.kubernetes.io/managed-by": "Helm",
+                    "app.kubernetes.io/name": "istiod",
+                    "app.kubernetes.io/part-of": "istio",
+                    "app.kubernetes.io/version": "1.31.1",
+                    "helm.sh/chart": "istiod-1.31.1",
+                    "install.operator.istio.io/owning-resource": "unknown",
+                    "install.operator.istio.io/owning-resource-namespace": "istio-system",
+                    "install.operator.istio.io/owning-resource-not-pruned": "true",
+                    "istio": "pilot",
+                    "istio.io/rev": "default",
+                    "istio.io/tag": "default",
+                    "operator.istio.io/component": "Pilot",
+                    "operator.istio.io/managed": "Reconcile",
+                    "operator.istio.io/version": "1.31.1",
+                    "release": "istio"
+                },
+                "name": "istiod-revision-tag-default",
+                "namespace": "istio-system",
+                "resourceVersion": "949",
+                "uid": "8ed3bf69-68b0-415e-be00-85596b9ef152"
+            },
+            "spec": {
+                "clusterIP": "10.96.32.164",
+                "clusterIPs": [
+                    "10.96.32.164"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc-xds",
+                        "port": 15010,
+                        "protocol": "TCP",
+                        "targetPort": 15010
+                    },
+                    {
+                        "name": "https-dns",
+                        "port": 15012,
+                        "protocol": "TCP",
+                        "targetPort": 15012
+                    },
+                    {
+                        "name": "https-webhook",
+                        "port": 443,
+                        "protocol": "TCP",
+                        "targetPort": 15017
+                    },
+                    {
+                        "name": "http-monitoring",
+                        "port": 15014,
+                        "protocol": "TCP",
+                        "targetPort": 15014
+                    }
+                ],
+                "selector": {
+                    "app": "istiod",
+                    "istio.io/rev": "default"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app.kubernetes.io/component\":\"server\",\"app.kubernetes.io/instance\":\"prometheus\",\"app.kubernetes.io/name\":\"prometheus\",\"app.kubernetes.io/part-of\":\"prometheus\",\"app.kubernetes.io/version\":\"v3.10.0\",\"helm.sh/chart\":\"prometheus-28.13.0\"},\"name\":\"prometheus\",\"namespace\":\"istio-system\"},\"spec\":{\"ports\":[{\"name\":\"http\",\"port\":9090,\"protocol\":\"TCP\",\"targetPort\":9090}],\"selector\":{\"app.kubernetes.io/component\":\"server\",\"app.kubernetes.io/instance\":\"prometheus\",\"app.kubernetes.io/name\":\"prometheus\"},\"sessionAffinity\":\"None\",\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:56:23Z",
+                "labels": {
+                    "app.kubernetes.io/component": "server",
+                    "app.kubernetes.io/instance": "prometheus",
+                    "app.kubernetes.io/name": "prometheus",
+                    "app.kubernetes.io/part-of": "prometheus",
+                    "app.kubernetes.io/version": "v3.10.0",
+                    "helm.sh/chart": "prometheus-28.13.0"
+                },
+                "name": "prometheus",
+                "namespace": "istio-system",
+                "resourceVersion": "957",
+                "uid": "e74ce89e-d706-4797-a9d8-8fc9bb4f525e"
+            },
+            "spec": {
+                "clusterIP": "10.96.105.198",
+                "clusterIPs": [
+                    "10.96.105.198"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "http",
+                        "port": 9090,
+                        "protocol": "TCP",
+                        "targetPort": 9090
+                    }
+                ],
+                "selector": {
+                    "app.kubernetes.io/component": "server",
+                    "app.kubernetes.io/instance": "prometheus",
+                    "app.kubernetes.io/name": "prometheus"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "prometheus.io/port": "9153",
+                    "prometheus.io/scrape": "true"
+                },
+                "creationTimestamp": "2026-10-01T14:54:48Z",
+                "labels": {
+                    "k8s-app": "kube-dns",
+                    "kubernetes.io/cluster-service": "true",
+                    "kubernetes.io/name": "CoreDNS"
+                },
+                "name": "kube-dns",
+                "namespace": "kube-system",
+                "resourceVersion": "224",
+                "uid": "5f5988fd-5479-41a4-864c-33b815d00cec"
+            },
+            "spec": {
+                "clusterIP": "10.96.0.10",
+                "clusterIPs": [
+                    "10.96.0.10"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "dns",
+                        "port": 53,
+                        "protocol": "UDP",
+                        "targetPort": 53
+                    },
+                    {
+                        "name": "dns-tcp",
+                        "port": 53,
+                        "protocol": "TCP",
+                        "targetPort": 53
+                    },
+                    {
+                        "name": "metrics",
+                        "port": 9153,
+                        "protocol": "TCP",
+                        "targetPort": 9153
+                    }
+                ],
+                "selector": {
+                    "k8s-app": "kube-dns"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"adservice\"},\"name\":\"adservice\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"grpc\",\"port\":9555,\"targetPort\":9555}],\"selector\":{\"app\":\"adservice\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:39Z",
+                "labels": {
+                    "app": "adservice"
+                },
+                "name": "adservice",
+                "namespace": "shared-eval",
+                "resourceVersion": "1235",
+                "uid": "5c4da3a0-f49b-4852-8a05-a2b537f8b84f"
+            },
+            "spec": {
+                "clusterIP": "10.96.33.234",
+                "clusterIPs": [
+                    "10.96.33.234"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": 9555,
+                        "protocol": "TCP",
+                        "targetPort": 9555
+                    }
+                ],
+                "selector": {
+                    "app": "adservice"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:39Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"cartservice\"},\"name\":\"cartservice\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"grpc\",\"port\":7070,\"targetPort\":7070}],\"selector\":{\"app\":\"cartservice\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:41Z",
+                "labels": {
+                    "app": "cartservice"
+                },
+                "name": "cartservice",
+                "namespace": "shared-eval",
+                "resourceVersion": "1437",
+                "uid": "c95cf9bf-16b1-458b-9b6f-eab189e61fa4"
+            },
+            "spec": {
+                "clusterIP": "10.96.98.179",
+                "clusterIPs": [
+                    "10.96.98.179"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": 7070,
+                        "protocol": "TCP",
+                        "targetPort": 7070
+                    }
+                ],
+                "selector": {
+                    "app": "cartservice"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:42Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"checkoutservice\"},\"name\":\"checkoutservice\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"grpc\",\"port\":5050,\"targetPort\":5050}],\"selector\":{\"app\":\"checkoutservice\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:40Z",
+                "labels": {
+                    "app": "checkoutservice"
+                },
+                "name": "checkoutservice",
+                "namespace": "shared-eval",
+                "resourceVersion": "1292",
+                "uid": "c80d3834-4c9d-4892-b18d-4def8af9b19a"
+            },
+            "spec": {
+                "clusterIP": "10.96.55.255",
+                "clusterIPs": [
+                    "10.96.55.255"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": 5050,
+                        "protocol": "TCP",
+                        "targetPort": 5050
+                    }
+                ],
+                "selector": {
+                    "app": "checkoutservice"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:40Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"currencyservice\"},\"name\":\"currencyservice\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"grpc\",\"port\":7000,\"targetPort\":7000}],\"selector\":{\"app\":\"currencyservice\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:40Z",
+                "labels": {
+                    "app": "currencyservice"
+                },
+                "name": "currencyservice",
+                "namespace": "shared-eval",
+                "resourceVersion": "1314",
+                "uid": "6fccd484-b61d-4c8c-938a-a8161d97c2cc"
+            },
+            "spec": {
+                "clusterIP": "10.96.50.66",
+                "clusterIPs": [
+                    "10.96.50.66"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": 7000,
+                        "protocol": "TCP",
+                        "targetPort": 7000
+                    }
+                ],
+                "selector": {
+                    "app": "currencyservice"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:40Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"emailservice\"},\"name\":\"emailservice\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"grpc\",\"port\":5000,\"targetPort\":8080}],\"selector\":{\"app\":\"emailservice\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:41Z",
+                "labels": {
+                    "app": "emailservice"
+                },
+                "name": "emailservice",
+                "namespace": "shared-eval",
+                "resourceVersion": "1349",
+                "uid": "5369184e-7c55-4391-b6dc-ffa7eb5fb00e"
+            },
+            "spec": {
+                "clusterIP": "10.96.140.137",
+                "clusterIPs": [
+                    "10.96.140.137"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": 5000,
+                        "protocol": "TCP",
+                        "targetPort": 8080
+                    }
+                ],
+                "selector": {
+                    "app": "emailservice"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:41Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"frontend\"},\"name\":\"frontend\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"http\",\"port\":80,\"targetPort\":8080}],\"selector\":{\"app\":\"frontend\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:41Z",
+                "labels": {
+                    "app": "frontend"
+                },
+                "name": "frontend",
+                "namespace": "shared-eval",
+                "resourceVersion": "1386",
+                "uid": "ba5fb46e-4b4c-4410-b831-755b2d0a7326"
+            },
+            "spec": {
+                "clusterIP": "10.96.83.159",
+                "clusterIPs": [
+                    "10.96.83.159"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "http",
+                        "port": 80,
+                        "protocol": "TCP",
+                        "targetPort": 8080
+                    }
+                ],
+                "selector": {
+                    "app": "frontend"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:41Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"frontend\"},\"name\":\"frontend-external\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"http\",\"port\":80,\"targetPort\":8080}],\"selector\":{\"app\":\"frontend\"},\"type\":\"LoadBalancer\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:41Z",
+                "labels": {
+                    "app": "frontend"
+                },
+                "name": "frontend-external",
+                "namespace": "shared-eval",
+                "resourceVersion": "1394",
+                "uid": "876fd8f9-d102-4bbc-9afd-3486b6d83d8a"
+            },
+            "spec": {
+                "allocateLoadBalancerNodePorts": true,
+                "clusterIP": "10.96.149.165",
+                "clusterIPs": [
+                    "10.96.149.165"
+                ],
+                "externalTrafficPolicy": "Cluster",
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "http",
+                        "nodePort": 32003,
+                        "port": 80,
+                        "protocol": "TCP",
+                        "targetPort": 8080
+                    }
+                ],
+                "selector": {
+                    "app": "frontend"
+                },
+                "sessionAffinity": "None",
+                "type": "LoadBalancer"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:41Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"paymentservice\"},\"name\":\"paymentservice\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"grpc\",\"port\":50051,\"targetPort\":50051}],\"selector\":{\"app\":\"paymentservice\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:42Z",
+                "labels": {
+                    "app": "paymentservice"
+                },
+                "name": "paymentservice",
+                "namespace": "shared-eval",
+                "resourceVersion": "1484",
+                "uid": "167065f7-92ba-462e-bfdb-a2209b822b0f"
+            },
+            "spec": {
+                "clusterIP": "10.96.199.232",
+                "clusterIPs": [
+                    "10.96.199.232"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": 50051,
+                        "protocol": "TCP",
+                        "targetPort": 50051
+                    }
+                ],
+                "selector": {
+                    "app": "paymentservice"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:42Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"productcatalogservice\"},\"name\":\"productcatalogservice\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"grpc\",\"port\":3550,\"targetPort\":3550}],\"selector\":{\"app\":\"productcatalogservice\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:41Z",
+                "labels": {
+                    "app": "productcatalogservice"
+                },
+                "name": "productcatalogservice",
+                "namespace": "shared-eval",
+                "resourceVersion": "1365",
+                "uid": "85fea32c-9cac-4292-b3ea-c986dce1da9f"
+            },
+            "spec": {
+                "clusterIP": "10.96.19.13",
+                "clusterIPs": [
+                    "10.96.19.13"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": 3550,
+                        "protocol": "TCP",
+                        "targetPort": 3550
+                    }
+                ],
+                "selector": {
+                    "app": "productcatalogservice"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:41Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"recommendationservice\"},\"name\":\"recommendationservice\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"grpc\",\"port\":8080,\"targetPort\":8080}],\"selector\":{\"app\":\"recommendationservice\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:41Z",
+                "labels": {
+                    "app": "recommendationservice"
+                },
+                "name": "recommendationservice",
+                "namespace": "shared-eval",
+                "resourceVersion": "1410",
+                "uid": "abb85b0d-8d09-4b92-831e-630c87e836ad"
+            },
+            "spec": {
+                "clusterIP": "10.96.33.111",
+                "clusterIPs": [
+                    "10.96.33.111"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": 8080,
+                        "protocol": "TCP",
+                        "targetPort": 8080
+                    }
+                ],
+                "selector": {
+                    "app": "recommendationservice"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:41Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"redis-cart\"},\"name\":\"redis-cart\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"tcp-redis\",\"port\":6379,\"targetPort\":6379}],\"selector\":{\"app\":\"redis-cart\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:42Z",
+                "labels": {
+                    "app": "redis-cart"
+                },
+                "name": "redis-cart",
+                "namespace": "shared-eval",
+                "resourceVersion": "1463",
+                "uid": "85495d4b-7252-4901-927c-507ae7f03982"
+            },
+            "spec": {
+                "clusterIP": "10.96.248.181",
+                "clusterIPs": [
+                    "10.96.248.181"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "tcp-redis",
+                        "port": 6379,
+                        "protocol": "TCP",
+                        "targetPort": 6379
+                    }
+                ],
+                "selector": {
+                    "app": "redis-cart"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:42Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"shippingservice\"},\"name\":\"shippingservice\",\"namespace\":\"shared-eval\"},\"spec\":{\"ports\":[{\"name\":\"grpc\",\"port\":50051,\"targetPort\":50051}],\"selector\":{\"app\":\"shippingservice\"},\"type\":\"ClusterIP\"}}\n"
+                },
+                "creationTimestamp": "2026-10-01T14:57:39Z",
+                "labels": {
+                    "app": "shippingservice"
+                },
+                "name": "shippingservice",
+                "namespace": "shared-eval",
+                "resourceVersion": "1257",
+                "uid": "f1bfdc3c-ee96-476d-8000-c147d8683e05"
+            },
+            "spec": {
+                "clusterIP": "10.96.111.166",
+                "clusterIPs": [
+                    "10.96.111.166"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": 50051,
+                        "protocol": "TCP",
+                        "targetPort": 50051
+                    }
+                ],
+                "selector": {
+                    "app": "shippingservice"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-01T14:57:39Z",
+                        "message": "Successfully attached to waypoint shared-eval/waypoint",
+                        "reason": "WaypointAccepted",
+                        "status": "True",
+                        "type": "istio.io/WaypointBound"
+                    }
+                ],
+                "loadBalancer": {}
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "networking.istio.io/traffic-distribution": "PreferClose"
+                },
+                "creationTimestamp": "2026-10-01T14:57:30Z",
+                "labels": {
+                    "gateway.istio.io/managed": "istio.io-mesh-controller",
+                    "gateway.networking.k8s.io/gateway-class-name": "istio-waypoint",
+                    "gateway.networking.k8s.io/gateway-name": "waypoint"
+                },
+                "name": "waypoint",
+                "namespace": "shared-eval",
+                "ownerReferences": [
+                    {
+                        "apiVersion": "gateway.networking.k8s.io/v1",
+                        "kind": "Gateway",
+                        "name": "waypoint",
+                        "uid": "97b171b8-963a-47c7-bb53-489c4fc21949"
+                    }
+                ],
+                "resourceVersion": "1171",
+                "uid": "9cfe8b79-64b6-4e28-87f4-603ecda01abb"
+            },
+            "spec": {
+                "clusterIP": "10.96.184.74",
+                "clusterIPs": [
+                    "10.96.184.74"
+                ],
+                "internalTrafficPolicy": "Cluster",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "PreferDualStack",
+                "ports": [
+                    {
+                        "appProtocol": "tcp",
+                        "name": "status-port",
+                        "port": 15021,
+                        "protocol": "TCP",
+                        "targetPort": 15021
+                    },
+                    {
+                        "appProtocol": "hbone",
+                        "name": "mesh",
+                        "port": 15008,
+                        "protocol": "TCP",
+                        "targetPort": 15008
+                    }
+                ],
+                "selector": {
+                    "gateway.networking.k8s.io/gateway-name": "waypoint"
+                },
+                "sessionAffinity": "None",
+                "type": "ClusterIP"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

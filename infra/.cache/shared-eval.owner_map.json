@@ -1,0 +1,258 @@
+{
+  "shared-eval|recommendationservice|shared-eval|emailservice": [
+    "trial-01"
+  ],
+  "shared-eval|emailservice|shared-eval|productcatalogservice": [
+    "trial-01"
+  ],
+  "shared-eval|cartservice|shared-eval|emailservice": [
+    "trial-01"
+  ],
+  "shared-eval|paymentservice|shared-eval|productcatalogservice": [
+    "trial-01"
+  ],
+  "shared-eval|prometheus|shared-eval|productcatalogservice": [
+    "trial-01"
+  ],
+  "shared-eval|adservice|shared-eval|frontend": [
+    "trial-01",
+    "trial-11"
+  ],
+  "shared-eval|paymentservice|shared-eval|redis-cart": [
+    "trial-02"
+  ],
+  "shared-eval|productcatalogservice|shared-eval|shippingservice": [
+    "trial-02"
+  ],
+  "shared-eval|emailservice|shared-eval|adservice": [
+    "trial-02"
+  ],
+  "shared-eval|adservice|shared-eval|currencyservice": [
+    "trial-02"
+  ],
+  "shared-eval|prometheus|shared-eval|cartservice": [
+    "trial-02",
+    "trial-12"
+  ],
+  "shared-eval|redis-cart|shared-eval|frontend": [
+    "trial-02",
+    "trial-12"
+  ],
+  "shared-eval|productcatalogservice|shared-eval|checkoutservice": [
+    "trial-03"
+  ],
+  "shared-eval|redis-cart|shared-eval|checkoutservice": [
+    "trial-03"
+  ],
+  "shared-eval|productcatalogservice|shared-eval|adservice": [
+    "trial-03"
+  ],
+  "shared-eval|emailservice|shared-eval|paymentservice": [
+    "trial-03"
+  ],
+  "shared-eval|grafana|shared-eval|shippingservice": [
+    "trial-03"
+  ],
+  "shared-eval|productcatalogservice|shared-eval|frontend": [
+    "trial-03",
+    "trial-13"
+  ],
+  "shared-eval|emailservice|shared-eval|checkoutservice": [
+    "trial-04"
+  ],
+  "shared-eval|cartservice|shared-eval|checkoutservice": [
+    "trial-04"
+  ],
+  "shared-eval|adservice|shared-eval|paymentservice": [
+    "trial-04"
+  ],
+  "shared-eval|redis-cart|shared-eval|productcatalogservice": [
+    "trial-04"
+  ],
+  "shared-eval|blackbox-exporter|shared-eval|emailservice": [
+    "trial-04"
+  ],
+  "shared-eval|paymentservice|shared-eval|frontend": [
+    "trial-04",
+    "trial-14"
+  ],
+  "shared-eval|recommendationservice|shared-eval|cartservice": [
+    "trial-05"
+  ],
+  "shared-eval|redis-cart|shared-eval|paymentservice": [
+    "trial-05"
+  ],
+  "shared-eval|paymentservice|shared-eval|shippingservice": [
+    "trial-05"
+  ],
+  "shared-eval|adservice|shared-eval|checkoutservice": [
+    "trial-05"
+  ],
+  "shared-eval|prometheus|shared-eval|adservice": [
+    "trial-05"
+  ],
+  "shared-eval|checkoutservice|shared-eval|frontend": [
+    "trial-05",
+    "trial-15"
+  ],
+  "shared-eval|paymentservice|shared-eval|currencyservice": [
+    "trial-06"
+  ],
+  "shared-eval|recommendationservice|shared-eval|paymentservice": [
+    "trial-06"
+  ],
+  "shared-eval|redis-cart|shared-eval|adservice": [
+    "trial-06"
+  ],
+  "shared-eval|shippingservice|shared-eval|currencyservice": [
+    "trial-06"
+  ],
+  "shared-eval|grafana|shared-eval|redis-cart": [
+    "trial-06"
+  ],
+  "shared-eval|shippingservice|shared-eval|frontend": [
+    "trial-06"
+  ],
+  "shared-eval|adservice|shared-eval|recommendationservice": [
+    "trial-07"
+  ],
+  "shared-eval|checkoutservice|shared-eval|recommendationservice": [
+    "trial-07"
+  ],
+  "shared-eval|currencyservice|shared-eval|recommendationservice": [
+    "trial-07"
+  ],
+  "shared-eval|checkoutservice|shared-eval|redis-cart": [
+    "trial-07"
+  ],
+  "shared-eval|prometheus|shared-eval|recommendationservice": [
+    "trial-07"
+  ],
+  "shared-eval|emailservice|shared-eval|frontend": [
+    "trial-07"
+  ],
+  "shared-eval|redis-cart|shared-eval|currencyservice": [
+    "trial-08"
+  ],
+  "shared-eval|currencyservice|shared-eval|checkoutservice": [
+    "trial-08"
+  ],
+  "shared-eval|recommendationservice|shared-eval|shippingservice": [
+    "trial-08"
+  ],
+  "shared-eval|paymentservice|shared-eval|cartservice": [
+    "trial-08"
+  ],
+  "shared-eval|blackbox-exporter|shared-eval|recommendationservice": [
+    "trial-08",
+    "trial-11"
+  ],
+  "shared-eval|currencyservice|shared-eval|frontend": [
+    "trial-08"
+  ],
+  "shared-eval|paymentservice|shared-eval|adservice": [
+    "trial-09"
+  ],
+  "shared-eval|currencyservice|shared-eval|adservice": [
+    "trial-09"
+  ],
+  "shared-eval|emailservice|shared-eval|shippingservice": [
+    "trial-09"
+  ],
+  "shared-eval|recommendationservice|shared-eval|redis-cart": [
+    "trial-09"
+  ],
+  "shared-eval|blackbox-exporter|shared-eval|currencyservice": [
+    "trial-09"
+  ],
+  "shared-eval|cartservice|shared-eval|frontend": [
+    "trial-09"
+  ],
+  "shared-eval|adservice|shared-eval|shippingservice": [
+    "trial-10"
+  ],
+  "shared-eval|currencyservice|shared-eval|cartservice": [
+    "trial-10"
+  ],
+  "shared-eval|currencyservice|shared-eval|shippingservice": [
+    "trial-10"
+  ],
+  "shared-eval|shippingservice|shared-eval|redis-cart": [
+    "trial-10"
+  ],
+  "shared-eval|grafana|shared-eval|adservice": [
+    "trial-10"
+  ],
+  "shared-eval|recommendationservice|shared-eval|frontend": [
+    "trial-10"
+  ],
+  "shared-eval|productcatalogservice|shared-eval|cartservice": [
+    "trial-11"
+  ],
+  "shared-eval|shippingservice|shared-eval|recommendationservice": [
+    "trial-11"
+  ],
+  "shared-eval|productcatalogservice|shared-eval|currencyservice": [
+    "trial-11"
+  ],
+  "shared-eval|cartservice|shared-eval|productcatalogservice": [
+    "trial-11"
+  ],
+  "shared-eval|shippingservice|shared-eval|checkoutservice": [
+    "trial-12"
+  ],
+  "shared-eval|emailservice|shared-eval|redis-cart": [
+    "trial-12"
+  ],
+  "shared-eval|shippingservice|shared-eval|paymentservice": [
+    "trial-12"
+  ],
+  "shared-eval|redis-cart|shared-eval|emailservice": [
+    "trial-12"
+  ],
+  "shared-eval|currencyservice|shared-eval|productcatalogservice": [
+    "trial-13"
+  ],
+  "shared-eval|recommendationservice|shared-eval|checkoutservice": [
+    "trial-13"
+  ],
+  "shared-eval|shippingservice|shared-eval|productcatalogservice": [
+    "trial-13"
+  ],
+  "shared-eval|shippingservice|shared-eval|adservice": [
+    "trial-13"
+  ],
+  "shared-eval|blackbox-exporter|shared-eval|checkoutservice": [
+    "trial-13"
+  ],
+  "shared-eval|currencyservice|shared-eval|redis-cart": [
+    "trial-14"
+  ],
+  "shared-eval|shippingservice|shared-eval|emailservice": [
+    "trial-14"
+  ],
+  "shared-eval|emailservice|shared-eval|cartservice": [
+    "trial-14"
+  ],
+  "shared-eval|adservice|shared-eval|emailservice": [
+    "trial-14"
+  ],
+  "shared-eval|grafana|shared-eval|recommendationservice": [
+    "trial-14"
+  ],
+  "shared-eval|adservice|shared-eval|redis-cart": [
+    "trial-15"
+  ],
+  "shared-eval|paymentservice|shared-eval|recommendationservice": [
+    "trial-15"
+  ],
+  "shared-eval|paymentservice|shared-eval|emailservice": [
+    "trial-15"
+  ],
+  "shared-eval|cartservice|shared-eval|currencyservice": [
+    "trial-15"
+  ],
+  "shared-eval|grafana|shared-eval|emailservice": [
+    "trial-15"
+  ]
+}

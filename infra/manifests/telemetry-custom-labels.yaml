@@ -1,0 +1,52 @@
+# Bổ sung 1 nhãn tùy chỉnh vào istio_requests_total mà traffic_collector.py CẦN và
+# Istio KHÔNG tự phơi ra mặc định (xem NOTE trong docstring tier1/traffic_collector.py):
+#
+#   request_path  -> path tầng ứng dụng, cần cho phân loại HEALTHCHECK (TIER1_DESIGN.md mục 2)
+#
+# ĐÃ XÁC NHẬN THẬT (chạy trên máy Bin, 2026-09-27, trial-01, 15 phút traffic thật qua
+# waypoint): "request_path" (dùng attribute built-in `request.url_path`) resolve ĐÚNG
+# giá trị thật (vd "/hipstershop.CheckoutService/PlaceOrder", "/cart") — GIỮ LẠI.
+#
+# ĐÃ BỎ 2 tagOverrides "test_harness"/"injection_id" (dùng `source.labels['test-harness']`/
+# `source.labels['injection-id']`) — ĐÃ XÁC NHẬN đây là giới hạn THẬT của Istio ambient, KHÔNG
+# PHẢI lỗi cấu hình: mọi series `istio_requests_total{reporter="waypoint"}` trả về đúng 100%
+# giá trị "unknown" cho 2 nhãn này (không phải rỗng/absent — nghĩa là expression CÓ chạy,
+# nhưng `source.labels[...]` không đọc được nhãn Pod thật qua waypoint). Xác nhận qua chính
+# comment trong source code Istio: "Source label matching is not supported in ambient mode,
+# and thus not supported in waypoint routes" — istio/istio#61590 (câu hỏi trực tiếp cùng vấn
+# đề), lý do thiết kế tại istio/istio#51565. Cơ chế "Metadata Exchange" (trao đổi TOÀN BỘ
+# node labels giữa 2 sidecar qua ALPN) mà `source.labels[...]` phụ thuộc CHỈ tồn tại giữa 2
+# sidecar — ztunnel/waypoint (ambient) không cài lại cơ chế này, chỉ truyền định danh workload
+# (SPIFFE identity -> istiod tra ngược ra source_workload/source_canonical_service, đây là lý
+# do 2 nhãn built-in đó VẪN đúng dù source.labels[...] không đọc được).
+#
+# KHÔNG BỊ CHẶN bởi giới hạn này: tier1_inference/tier1/evaluation.py (chấm điểm
+# precision/recall/F1 thật của thí nghiệm) chỉ so khớp theo `pair_key()`
+# (source/dest canonical_service + namespace) với ground_truth JSON đã biết SẴN từ lúc sinh
+# kịch bản (scenario_pool.py) — KHÔNG hề đọc `is_injected`/`injection_id` từ Prometheus (xác
+# nhận qua grep trực tiếp evaluation.py/experiment.py). Provenance "test_harness"/"injection_id"
+# hoá ra chỉ cần thiết cho phương án "hạ tầng dùng chung" (1 Online Boutique + nhiều trial ảo
+# trong CÙNG namespace, xem README "Việc còn thiếu") — với kiến trúc HIỆN TẠI (mỗi trial 1
+# namespace riêng, đã chạy thật end-to-end), namespace tự nó đã đủ phân biệt trial
+# (`source_workload_namespace`/`destination_workload_namespace`, đã xác nhận resolve đúng qua
+# waypoint). Vì vậy giới hạn này KHÔNG chặn pipeline suy luận/chấm điểm của đồ án — chỉ khiến
+# `07_verify.sh` mục [4/4] cũ (đã sửa, xem script) không bao giờ pass, đúng như kỳ vọng.
+#
+# Áp dụng: kubectl apply -f telemetry-custom-labels.yaml
+# Namespace-scoped: đặt vào istio-system = áp dụng MESH-WIDE (mọi namespace).
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: kltn-custom-labels
+  namespace: istio-system
+spec:
+  metrics:
+    - providers:
+        - name: prometheus
+      overrides:
+        - match:
+            metric: REQUEST_COUNT
+          tagOverrides:
+            request_path:
+              value: "request.url_path"
+              operation: UPSERT

@@ -1,0 +1,5 @@
+fastapi>=0.110
+uvicorn>=0.27
+requests>=2.31
+kubernetes>=29.0
+# + requirements.txt của tier1_inference/ và tier2_agent/ (anthropic, jsonschema, openai...)

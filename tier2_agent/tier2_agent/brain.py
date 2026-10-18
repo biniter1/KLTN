@@ -279,6 +279,12 @@ class Brain:
                 model_output,
                 stopped_by=decision.stopped_by,
                 stop_reason=decision.stop_reason,
+                # inj_result.flagged (dòng ~100) và pending_notices tích lũy trong
+                # chính vòng này (đã reset ở đầu vòng, populate qua Giai đoạn B/C ở
+                # trên) — trước đây cả 2 đều bị bỏ, dashboard không có cách nào biết
+                # SAU NÀY round này từng bị flag injection hay có notice gì.
+                reasoning_injection_flagged=inj_result.flagged,
+                system_notices=list(pending_notices),
             )
 
             if decision.stop:

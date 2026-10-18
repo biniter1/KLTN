@@ -1,0 +1,20 @@
+# Lõi Tier 1 (schema, scoring, status, storage, pipeline) chỉ dùng thư viện chuẩn Python
+# (sqlite3, math, dataclasses, enum) — KHÔNG có dependency bắt buộc nào để chạy examples/run_example.py.
+
+# Dùng cho scoring.fit_weights_logistic_regression() (mục 4 TIER1_DESIGN.md) — chỉ cần khi
+# huấn luyện trọng số thật với ground truth, KHÔNG cần cho pipeline suy luận mặc định.
+scikit-learn>=1.3
+numpy>=1.24
+
+# Dùng cho tier1.selector_validation.KubernetesSelectorValidator (mục 3b) VÀ
+# tier1.config_collector.KubernetesReader (CONFIG_EVIDENCE_COLLECTOR.md) — chỉ cần khi
+# đọc cluster K8s thật (kind/minikube), KHÔNG cần cho demo/dữ liệu giả lập (dùng FakeK8sReader).
+kubernetes>=28.0
+
+# Dùng cho tier1.traffic_collector.HttpPrometheusClient (TRAFFIC_COLLECTION_PIPELINE.md) —
+# chỉ cần khi query Prometheus thật, KHÔNG cần cho demo/test (dùng FakePrometheusClient).
+requests>=2.31
+
+# Dev-only — chạy tests/ (xem README.md phần "Chạy unit test")
+pytest>=7.0
+pytest-cov>=4.0
