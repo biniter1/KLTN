@@ -108,3 +108,25 @@ def test_http_gatekeeper_fetch_wraps_errors():
     fetch = make_http_gatekeeper_fetch("http://api-server.local", session=session)
     with pytest.raises(ToolExecutionError):
         fetch("frontend")
+
+
+def test_repo_relative_changed_files_from_github_are_matched(tmp_path):
+    """GitHub API trả `changed_files` TƯƠNG ĐỐI theo gốc repo, còn service_dirs là đường
+    dẫn tuyệt đối của bản checkout cục bộ."""
+    service_dirs = {"frontend": "/checkout/microservices-demo/src/frontend",
+                    "cartservice": "/checkout/microservices-demo/src/cartservice"}
+    prs = [
+        {"number": 1, "title": "fe", "body": "", "changed_files": ["src/frontend/handlers.go"]},
+        {"number": 2, "title": "cart", "body": "", "changed_files": ["src/cartservice/Startup.cs"]},
+        {"number": 3, "title": "leaf-name only", "body": "", "changed_files": ["docs/frontend/readme.md"]},
+    ]
+    tool = make_pr_descriptions_tool(CachingGatekeeperClient(lambda s: prs), service_dirs)
+    result = tool({"service": "frontend"})
+    assert result.pr_number == "1"
+
+
+def test_absolute_path_sibling_prefix_not_matched():
+    from tier2_agent.tools.pr_descriptions import _file_in_service_dir
+
+    assert _file_in_service_dir("/a/src/frontend/x.go", "/a/src/frontend")
+    assert not _file_in_service_dir("/a/src/frontend2/x.go", "/a/src/frontend")

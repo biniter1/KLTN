@@ -1,23 +1,23 @@
 """
-Scoring — TIER1_DESIGN.md mục 4 và 4a.
+Scoring — TIER1_DESIGN.md mục 4 và 4a (cập nhật 15/10/2026).
 
-    score = sigmoid(w1*recency + w2*log_volume + w3*distinct_days_ratio
-                   + w4*protocol_diversity + w5*healthcheck_ratio + w6*monitoring_ratio
-                   [+ w7*config_match_strength, chỉ khi count>0 — mục 4a])
+    score = sigmoid(bias + w1·recency + w2·log_volume + w3·distinct_days_ratio
+                   + w5·healthcheck_ratio + w6·monitoring_ratio
+                   [+ w7·config_match_strength, chỉ khi count>0 — mục 4a])
 
-Lưu ý quan trọng (mục 4a, luật cứng): config_match_strength CHỈ được cộng vào công thức
-khi cặp đã có traffic (count>0). Với count=0, hàm này không được gọi — status.py xử lý
-nhánh NOT_OBSERVED hoàn toàn tách biệt, không đi qua sigmoid (đúng "Luật cứng, không
-thương lượng" trong tài liệu).
+Thay đổi 15/10:
+  - Bỏ `protocol_diversity` (luôn = 0,5 vì protocol nằm trong khóa cạnh); bias −1,2 → −1,0.
+  - `log_volume` chia cho `config.volume_reference` CỐ ĐỊNH (không tính lại theo snapshot).
+  - Sau khi fit: config thành 3 đặc trưng 0/1 (`is_structural`, `is_embedded`,
+    `is_unresolved`) — `score_edge` dùng chúng khi `config.w_is_structural` đã có giá trị.
 
-fit_weights_logistic_regression() hiện thực đúng phương pháp mục 4 (sklearn
-LogisticRegression, L2, K-fold=5) để dùng KHI có ground truth thật (giai đoạn đánh giá,
-ngoài phạm vi code Tier 1 lõi) — không gọi trong pipeline mặc định, weights mặc định
-lấy từ config.py (giá trị khởi tạo thủ công, đúng tinh thần mục 12).
+Luật cứng (mục 4a): config_match_strength CHỈ cộng khi cạnh đã có traffic (count>0). Với
+count=0, hàm này không được gọi — nhánh NOT_OBSERVED hoàn toàn tách biệt.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass
 
@@ -45,10 +45,13 @@ class ScoringFeatures:
     recency: float
     log_volume: float
     distinct_days_ratio: float
-    protocol_diversity: float
     healthcheck_ratio: float
     monitoring_ratio: float
-    config_match_strength: float  # 0.0 nếu không có config evidence khớp cặp này
+    config_match_strength: float  # 0.0 nếu không có config evidence khớp cạnh này
+    # 3 đặc trưng 0/1 của config (dùng sau khi fit — mục 4a)
+    is_structural: float = 0.0
+    is_embedded: float = 0.0
+    is_unresolved: float = 0.0
 
 
 def sigmoid(x: float) -> float:
@@ -61,7 +64,8 @@ def sigmoid(x: float) -> float:
 
 
 def percentile_95(values: list[int]) -> float:
-    """EXPECTED_MAX = percentile_95(count của mọi cặp trong C_observed, cùng snapshot) — mục 4.
+    """Phân vị 95 — dùng để lấy `ScoringConfig.volume_reference` MỘT LẦN từ dữ liệu rồi
+    đóng băng (mục 4, chốt 15/10); không còn gọi theo từng snapshot trong pipeline.
     Triển khai thủ công (không phụ thuộc numpy) bằng nội suy tuyến tính kiểu 'linear'
     (giống mặc định numpy.percentile) để dễ kiểm chứng độc lập khi trình bày."""
     if not values:
@@ -80,24 +84,27 @@ def percentile_95(values: list[int]) -> float:
 
 def compute_features(
     agg: TrafficAggregate,
-    expected_max_count: float,
-    config_match_strength: float,
+    expected_max_count: float | None = None,
+    config_match_strength: float = 0.0,
     config: ScoringConfig = DEFAULT_CONFIG,
+    config_finding: ConfigFinding | None = None,
 ) -> ScoringFeatures:
-    """Tính 6 feature gốc (mục 4) + feature thứ 7 (mục 4a) cho MỘT edge đã có traffic."""
+    """Tính đặc trưng cho MỘT cạnh đã có traffic.
+
+    `expected_max_count`: chỉ để tương thích chữ ký cũ — None (mặc định) dùng
+    `config.volume_reference` cố định (chốt 15/10). Truyền số thì dùng số đó."""
 
     K = config.window_days
+    reference = expected_max_count if expected_max_count is not None else config.volume_reference
 
     recency = 1.0 - min(agg.last_seen_days_ago / K, 1.0) if K > 0 else 0.0
     recency = max(0.0, recency)
 
     log_volume = min(
-        math.log(agg.count + 1) / math.log(expected_max_count + 1), 1.0
-    ) if expected_max_count > 0 else 0.0
+        math.log(agg.count + 1) / math.log(reference + 1), 1.0
+    ) if reference > 0 else 0.0
 
     distinct_days_ratio = min(agg.distinct_days / K, 1.0) if K > 0 else 0.0
-
-    protocol_diversity = min(len(agg.distinct_protocols) / 2, 1.0)
 
     healthcheck_ratio = agg.class_ratio(TrafficClass.HEALTHCHECK)
     monitoring_ratio = agg.class_ratio(TrafficClass.MONITORING)
@@ -106,10 +113,12 @@ def compute_features(
         recency=recency,
         log_volume=log_volume,
         distinct_days_ratio=distinct_days_ratio,
-        protocol_diversity=protocol_diversity,
         healthcheck_ratio=healthcheck_ratio,
         monitoring_ratio=monitoring_ratio,
         config_match_strength=config_match_strength,
+        is_structural=1.0 if config_finding == ConfigFinding.FOUND_STRUCTURAL else 0.0,
+        is_embedded=1.0 if config_finding == ConfigFinding.FOUND_EMBEDDED else 0.0,
+        is_unresolved=1.0 if config_finding == ConfigFinding.FOUND_UNRESOLVED else 0.0,
     )
 
 
@@ -120,11 +129,18 @@ def score_edge(features: ScoringFeatures, config: ScoringConfig = DEFAULT_CONFIG
         + config.w_recency * features.recency
         + config.w_log_volume * features.log_volume
         + config.w_distinct_days_ratio * features.distinct_days_ratio
-        + config.w_protocol_diversity * features.protocol_diversity
         + config.w_healthcheck_ratio * features.healthcheck_ratio
         + config.w_monitoring_ratio * features.monitoring_ratio
-        + config.w_config_match_strength * features.config_match_strength
     )
+    if config.w_is_structural is not None:
+        # Đã fit: config dạng 3 đặc trưng 0/1 (mục 4a, chốt 15/10)
+        x += (
+            config.w_is_structural * features.is_structural
+            + (config.w_is_embedded or 0.0) * features.is_embedded
+            + (config.w_is_unresolved or 0.0) * features.is_unresolved
+        )
+    else:
+        x += config.w_config_match_strength * features.config_match_strength
     return sigmoid(x)
 
 
@@ -139,6 +155,7 @@ def fit_weights_logistic_regression(
     feature_rows: list[ScoringFeatures],
     labels: list[int],
     k_folds: int = 5,
+    base_config: ScoringConfig = DEFAULT_CONFIG,
 ) -> tuple[ScoringConfig, dict]:
     """
     sklearn.linear_model.LogisticRegression + L2 regularization + K-fold cross-validation
@@ -155,8 +172,9 @@ def fit_weights_logistic_regression(
     from sklearn.model_selection import StratifiedKFold, cross_validate
 
     X = np.array([
-        [f.recency, f.log_volume, f.distinct_days_ratio, f.protocol_diversity,
-         f.healthcheck_ratio, f.monitoring_ratio, f.config_match_strength]
+        [f.recency, f.log_volume, f.distinct_days_ratio,
+         f.healthcheck_ratio, f.monitoring_ratio,
+         f.is_structural, f.is_embedded, f.is_unresolved]
         for f in feature_rows
     ])
     y = np.array(labels)
@@ -177,14 +195,16 @@ def fit_weights_logistic_regression(
     w = clf.coef_[0]
     bias = clf.intercept_[0]
 
-    new_config = ScoringConfig(
+    new_config = dataclasses.replace(
+        base_config,
         w_recency=float(w[0]),
         w_log_volume=float(w[1]),
         w_distinct_days_ratio=float(w[2]),
-        w_protocol_diversity=float(w[3]),
-        w_healthcheck_ratio=float(w[4]),
-        w_monitoring_ratio=float(w[5]),
-        w_config_match_strength=float(w[6]),
+        w_healthcheck_ratio=float(w[3]),
+        w_monitoring_ratio=float(w[4]),
+        w_is_structural=float(w[5]),
+        w_is_embedded=float(w[6]),
+        w_is_unresolved=float(w[7]),
         bias=float(bias),
     )
 

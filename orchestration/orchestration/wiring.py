@@ -56,6 +56,16 @@ def kubernetes_deployment_clock(kubeconfig_path: Optional[str] = None,
 # ---------------------------------------------------------------------------
 
 
+def _same_edge(series_key: str, edge_key: str) -> bool:
+    """Khớp khóa cạnh dạng chuỗi `ns|svc|sa|dns|dsvc|protocol|port`. Series thu lại ở đây
+    không có cluster context nên port có thể là "None" trong khi cạnh của Tầng 1 đã có port
+    suy ra từ Service (TIER1_DESIGN.md mục 2.1b) — coi port "None" của series là khớp mọi port."""
+    if series_key == edge_key:
+        return True
+    s_parts, e_parts = series_key.split("|"), edge_key.split("|")
+    return len(s_parts) == len(e_parts) == 7 and s_parts[:6] == e_parts[:6] and s_parts[6] == "None"
+
+
 class PrometheusTrafficWindowProvider:
     """`TrafficProvider` cho tool `read_extended_traffic_window` của Tier 2: query Prometheus
     bằng ĐÚNG `collect_traffic()` của Tier 1 (cùng PromQL, cùng phân loại) với cửa sổ dài hơn,
@@ -75,7 +85,7 @@ class PrometheusTrafficWindowProvider:
 
         collection = collect_traffic(self._client, window_days=window_days, namespaces=self._namespaces,
                                      now=self._now() if self._now else None, check_gaps=False)
-        matched = [s for s in collection.series if s.identity_key().as_string() == edge]
+        matched = [s for s in collection.series if _same_edge(s.identity_key().as_string(), edge)]
         if not matched:
             return {"count": 0, "distinct_days": 0, "error_ratio": 0.0, "protocol_diversity": 0}
         classify_all(matched, ScoringConfig())

@@ -13,6 +13,15 @@ Ví dụ (hạ tầng dùng chung, sau khi đã đủ 7 ngày quan sát):
         --api-server http://localhost:8080
 
 Chạy cả 15 trial = gọi lệnh trên 15 lần (vòng for trong shell) — mỗi lần 1 tiến trình mới.
+
+Dùng stack VictoriaMetrics + VictoriaLogs (repo LOG_METRIC) thay Prometheus:
+
+    kubectl -n <ns-lab> port-forward svc/vmauth 8427:8427 &
+    python -m orchestration.cli_batch ... \
+        --metrics-backend victoriametrics \
+        --prometheus-url http://localhost:8427/select/0/prometheus \
+        --logs-url http://localhost:8427 \
+        --monitoring-service <ns-lab>/vmagent
 """
 
 from __future__ import annotations
@@ -41,7 +50,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ground-truth-dir", default=str(_INFRA / "ground_truth"))
     p.add_argument("--owner-map", default=None, help="mặc định: infra/.cache/<namespace>.owner_map.json")
     p.add_argument("--window-days", type=int, default=7)
-    p.add_argument("--prometheus-url", default="http://localhost:9090")
+    p.add_argument("--prometheus-url", default="http://localhost:9090",
+                   help="URL HTTP API metrics (Prometheus, hoặc vmauth .../select/0/prometheus)")
+    p.add_argument("--metrics-backend", default=None, choices=["prometheus", "victoriametrics"],
+                   help="mặc định: env TRAFFIC_METRICS_BACKEND, rồi prometheus")
+    p.add_argument("--allow-partial", action="store_true",
+                   help="[victoriametrics] chấp nhận kết quả isPartial (mặc định: hủy bước traffic)")
+    p.add_argument("--logs-url", default=None,
+                   help="VictoriaLogs/vmauth base URL — bật đọc access log ztunnel (port thật, cạnh TCP)")
+    p.add_argument("--monitoring-service", action="append", default=None,
+                   help="ns/tên-service của Prometheus/vmagent để tự phát hiện danh tính monitoring "
+                        "(lặp lại được; mặc định istio-system/prometheus)")
     p.add_argument("--kubeconfig", default=None)
     p.add_argument("--deployed-at", default=None,
                    help="ISO time lúc harness bắt đầu chạy; mặc định tự đọc startTime của pod test-harness=true")
@@ -64,12 +83,14 @@ def main(argv=None) -> int:  # pragma: no cover - nối hạ tầng thật; logi
     args = build_parser().parse_args(argv)
 
     from tier1.config_collector import CraneImageConfigReader, KubernetesReader
-    from tier1.traffic_collector import HttpPrometheusClient
+    from tier1.log_collector import HttpVictoriaLogsClient
+    from tier1.traffic_collector import make_metrics_client
 
     from .wiring import build_brain_runner, fixed_deployment_clock, kubernetes_deployment_clock
 
     owner_map = Path(args.owner_map) if args.owner_map else _INFRA / ".cache" / f"{args.namespace}.owner_map.json"
-    prom = HttpPrometheusClient(base_url=args.prometheus_url)
+    prom = make_metrics_client(args.prometheus_url, args.metrics_backend, allow_partial=args.allow_partial)
+    log_client = HttpVictoriaLogsClient(args.logs_url) if args.logs_url else None
     clock = (fixed_deployment_clock(_parse_dt(args.deployed_at)) if args.deployed_at
              else kubernetes_deployment_clock(args.kubeconfig))
 
@@ -95,6 +116,8 @@ def main(argv=None) -> int:  # pragma: no cover - nối hạ tầng thật; logi
         image_reader=CraneImageConfigReader() if args.image_config else None,
         deployment_clock=clock,
         tier2_runner=tier2_runner,
+        log_client=log_client,
+        monitoring_services=tuple(args.monitoring_service or ("istio-system/prometheus",)),
     )
     outcome = BatchOrchestrator(settings, deps).run()
     if outcome.status == "SUCCESS":

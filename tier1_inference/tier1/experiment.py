@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .baseline import run_baseline_b1, run_baseline_b2
-from .config import DEFAULT_CONFIG, ScoringConfig
+from .config import EXPERIMENT_CONFIG, ScoringConfig
 from .evaluation import (
     ConfidenceInterval,
     GroundTruth,
@@ -64,12 +64,15 @@ class TrialResult:
     b2_noise_precision: Metrics
 
 
-def run_trial(trial: TrialInput, config: ScoringConfig = DEFAULT_CONFIG) -> TrialResult:
+def run_trial(trial: TrialInput, config: ScoringConfig = EXPERIMENT_CONFIG, selector_validator=None) -> TrialResult:
     """Chạy Tier 1 thật + B1 + B2 trên ĐÚNG CÙNG traffic/config evidence của 1 trial
     (mục 13.3) — không đọc/ghi SQLite (previous_status luôn None, đúng tinh thần R=15
     "mỗi lần 1 kịch bản khác nhau", không phải chuỗi thời gian liên tục — xem mục 13.4
     cho ablation hysteresis riêng, KHÔNG dùng hàm này)."""
-    tier1_results = run_tier1(trial.traffic_series, trial.config_evidence, trial.trial_id, config=config)
+    # selector_validator=None -> MockSelectorValidator (có service_ref là qua). Đánh giá chính
+    # thức nên truyền KubernetesSelectorValidator thật (chỉ đọc) — TIER1_DESIGN.md mục 3b.
+    tier1_results = run_tier1(trial.traffic_series, trial.config_evidence, trial.trial_id, config=config,
+                              selector_validator=selector_validator)
     b1_results = run_baseline_b1(trial.traffic_series, trial.config_evidence, trial.trial_id, config=config)
     b2_results = run_baseline_b2(trial.traffic_series, trial.config_evidence, trial.trial_id, config=config)
 
@@ -131,7 +134,8 @@ def _summarize(trial_results: list[TrialResult], variant: str) -> VariantSummary
     )
 
 
-def run_experiment(trials: list[TrialInput], config: ScoringConfig = DEFAULT_CONFIG) -> ExperimentReport:
+def run_experiment(trials: list[TrialInput], config: ScoringConfig = EXPERIMENT_CONFIG,
+                   selector_validator=None) -> ExperimentReport:
     """Chạy R=15 trial độc lập (hoặc bất kỳ R nào >=1 truyền vào), tổng hợp
     `mean ± CI 95%` + kiểm định Wilcoxon signed-rank Tier 1 vs B1/B2 — đúng
     `TIER1_DESIGN.md` mục 13.3. KHÔNG dùng cho ablation hysteresis (mục 13.4) —
@@ -140,7 +144,7 @@ def run_experiment(trials: list[TrialInput], config: ScoringConfig = DEFAULT_CON
     if not trials:
         raise ValueError("run_experiment: cần ít nhất 1 trial")
 
-    trial_results = [run_trial(t, config) for t in trials]
+    trial_results = [run_trial(t, config, selector_validator) for t in trials]
 
     tier1_recall = [tr.tier1.recall for tr in trial_results]
     tier1_precision = [tr.tier1.precision for tr in trial_results]

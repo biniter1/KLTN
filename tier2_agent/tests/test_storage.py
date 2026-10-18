@@ -119,3 +119,30 @@ def test_tools_called_and_hypotheses_opened_count(storage):
 def test_wal_mode_enabled(storage):
     mode = storage._conn.execute("PRAGMA journal_mode;").fetchone()[0]
     assert mode.lower() == "wal"
+
+
+def test_old_db_without_dashboard_columns_is_migrated(tmp_path):
+    """File tier2.sqlite3 tạo TRƯỚC khi vá DASHBOARD_DESIGN.md mục 3.B không có 2 cột
+    reasoning_injection_flagged/system_notices — Storage() phải tự bổ sung."""
+    import sqlite3
+
+    from tier2_agent.storage import Storage
+
+    db = tmp_path / "old.sqlite3"
+    old = sqlite3.connect(str(db))
+    old.execute(
+        "CREATE TABLE agent_rounds (run_id TEXT NOT NULL, iteration INTEGER NOT NULL, reasoning TEXT, "
+        "stance_updates TEXT, new_hypotheses TEXT, action TEXT, stopped_by TEXT, stop_reason TEXT, "
+        "timestamp REAL NOT NULL, PRIMARY KEY (run_id, iteration))"
+    )
+    old.commit()
+    old.close()
+
+    st = Storage(str(db))
+    st.append_agent_round(
+        "r1", 1, ModelOutput(reasoning="x", stance_updates=[], new_hypotheses=[], action="conclude", tool_calls=[]),
+        stopped_by="model", stop_reason=None, reasoning_injection_flagged=True, system_notices=["n1"],
+    )
+    row = st.get_agent_rounds("r1")[0]
+    assert row["reasoning_injection_flagged"] == 1
+    assert row["system_notices"] == '["n1"]'

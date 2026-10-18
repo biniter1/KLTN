@@ -1,41 +1,38 @@
 """
-DNS auto-allow (mục 7) và phân loại scope IN_CLUSTER/EXTERNAL/UNKNOWN (mục 8).
+Phân loại scope IN_CLUSTER / EXTERNAL / UNKNOWN — TIER1_DESIGN.md mục 8 (chốt 15/10/2026).
 
-Cả hai đều là xử lý "rẽ nhánh trước khi vào scoring chính", không phải một phần của
-công thức sigmoid — đúng tinh thần "xử lý riêng, không đưa vào scoring" của mục 7.
+DNS (mục 7) KHÔNG còn quyết ở đây: chỉ 1 chỗ quyết DNS là bước phân loại
+(`classification.is_dns`, gán `traffic_class == DNS`); pipeline tách DNS theo traffic_class.
+Bản cũ có thêm `is_dns_edge` (port 53) chạy song song — 2 luật DNS ở 2 nơi.
+
+Thứ tự xác định scope cho cạnh traffic:
+  1. Istio ghi `destination_service = PassthroughCluster` (ra ngoài, chưa khai ServiceEntry)
+     hoặc `BlackHoleCluster` (bị chặn) -> EXTERNAL, cờ `external_unregistered`
+  2. Host đích khớp 1 ServiceEntry (index cluster, có wildcard) -> EXTERNAL
+  3. Có destination_service_ref (đúng 1 K8s Service thật) -> IN_CLUSTER
+  4. Tên đích có dấu chấm (dạng FQDN) -> EXTERNAL (phương án cuối)
+  5. Còn lại -> UNKNOWN, cần người xem thay vì đoán
+Cờ (1), (2) do collector gắn lúc thu thập (traffic_collector.py / cluster_context.py).
 """
 
 from __future__ import annotations
 
-from .aggregation import TrafficAggregate
-from .config import ScoringConfig, DEFAULT_CONFIG
-from .schema import IdentityKey, ServiceRef, Scope
+from typing import Iterable
 
+from .schema import IdentityKey, Scope, ServiceRef
 
-def is_dns_edge(identity_key: IdentityKey, config: ScoringConfig = DEFAULT_CONFIG) -> bool:
-    """mục 7: DNS là 'hidden dependency' kinh điển — Kube-dns/CoreDNS luôn auto-allow,
-    không phụ thuộc kết luận Tier 1/Tier 2, dù port có tách được hay không."""
-    return identity_key.port == config.dns_port or identity_key.protocol.upper() == "DNS"
+EXTERNAL_FLAGS = frozenset({"external_unregistered", "serviceentry_host"})
 
 
 def classify_scope(
     identity_key: IdentityKey,
     destination_service_ref: ServiceRef | None,
+    flags: Iterable[str] = (),
 ) -> Scope:
-    """mục 8: scope in {IN_CLUSTER, EXTERNAL, UNKNOWN}.
-
-    Heuristic (tài liệu không cho thuật toán chi tiết, đây là lựa chọn thiết kế của Tier 1,
-    nhất quán với cách CONFIG_EVIDENCE_COLLECTOR.md mục 4 bước 6 tự phân loại EXTERNAL —
-    "không khớp Service nội bộ, khớp dạng địa chỉ ngoài"):
-
-      - Có destination_service_ref (đã đối chiếu ra đúng 1 K8s Service thật) -> IN_CLUSTER.
-      - Không có service_ref NHƯNG destination_canonical_service có dạng FQDN
-        (chứa dấu chấm, ví dụ "mysql.prod.example.com") -> EXTERNAL.
-      - Còn lại (không service_ref, không giống FQDN) -> UNKNOWN, cần review thủ công
-        thay vì đoán bừa.
-    """
+    if EXTERNAL_FLAGS.intersection(flags):
+        return Scope.EXTERNAL
     if destination_service_ref is not None:
         return Scope.IN_CLUSTER
-    if "." in identity_key.destination_canonical_service:
+    if "." in (identity_key.destination_canonical_service or ""):
         return Scope.EXTERNAL
     return Scope.UNKNOWN

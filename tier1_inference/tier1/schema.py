@@ -97,6 +97,23 @@ class IdentityKey:
             self.destination_canonical_service,
         )
 
+    def as_string(self) -> str:
+        """Chuỗi identity_key ổn định, dạng `ns|svc|sa|dest_ns|dest_svc|protocol|port`.
+
+        PHẢI giữ đúng định dạng của `tier2_agent.escalation.EscalationRecord.identity_key`
+        (port=None -> "None", giống `str(None)`), vì Orchestrator/API Server dùng chuỗi này
+        làm khoá nối `dependency_evidence` <-> `agent_sessions.edge_identity_key` <->
+        `human_decisions.target_identity_key` (DASHBOARD_DESIGN.md mục 4)."""
+        return "|".join(str(part) for part in (
+            self.source_namespace,
+            self.source_canonical_service,
+            self.source_service_account,
+            self.destination_namespace,
+            self.destination_canonical_service,
+            self.protocol,
+            self.port,
+        ))
+
     def as_dict(self) -> dict:
         return {
             "source_namespace": self.source_namespace,
@@ -122,6 +139,19 @@ class ServiceRef:
 # Traffic evidence — TRAFFIC_COLLECTION_PIPELINE.md
 # ---------------------------------------------------------------------------
 
+def normalize_path(path: Optional[str]) -> Optional[str]:
+    """TIER1_DESIGN.md mục 2.1a — viết thường, cắt từ '?', bỏ '/' cuối (giữ "/" gốc).
+    Dùng chung cho path traffic và path probe (cluster_context.py) để so được với nhau."""
+    if path is None:
+        return None
+    p = path.split("?", 1)[0].split("#", 1)[0].strip().lower()
+    if not p.startswith("/"):
+        p = "/" + p
+    if len(p) > 1:
+        p = p.rstrip("/") or "/"
+    return p
+
+
 @dataclass
 class TrafficSeries:
     """
@@ -145,11 +175,11 @@ class TrafficSeries:
     destination_service_account: Optional[str]
     destination_service_ref: Optional[ServiceRef]
     protocol: str  # "HTTP" | "GRPC" | "TCP" | "DNS"
-    port: int
+    port: Optional[int]  # None = chưa biết port (TIER1_DESIGN.md mục 2.1b) — KHÔNG dùng 0
     path: Optional[str]  # None cho TCP/DNS thuần
 
     count: int
-    distinct_days: int
+    distinct_days: int  # = len(traffic_days) khi traffic_days có; file JSON cũ chỉ có số này
     last_seen_days_ago: float
     error_count: int = 0
 
@@ -160,6 +190,34 @@ class TrafficSeries:
 
     # gán bởi classification.py, để trống lúc khởi tạo
     traffic_class: Optional[TrafficClass] = field(default=None)
+
+    # --- 15/10/2026 (TIER1_DESIGN.md mục 2.1) ---
+    # port lấy từ đâu: observed (nhãn metric) | observed_log (access log ztunnel) |
+    # inferred_single_port | inferred_protocol_match (suy từ Service spec) | unknown
+    port_source: str = "unknown"
+    # các ngày (YYYY-MM-DD) có traffic trong cửa sổ — gộp cạnh lấy HỢP các ngày (mục 2b)
+    traffic_days: list[str] = field(default_factory=list)
+    # cờ do collector/phân loại gắn: verified_monitoring, claimed_monitoring, probe_path,
+    # external_unregistered, serviceentry_host, legacy_days, multiple_ports_seen...
+    flags: list[str] = field(default_factory=list)
+    # nhãn thô `destination_service` của Istio (FQDN, hoặc PassthroughCluster/BlackHoleCluster)
+    destination_service_host: Optional[str] = None
+    # nguồn bằng chứng: "metrics" (Prometheus/VictoriaMetrics) | "logs" (VictoriaLogs)
+    evidence_source: str = "metrics"
+
+    def add_flag(self, flag: str) -> None:
+        if flag not in self.flags:
+            self.flags.append(flag)
+
+    @property
+    def path_norm(self) -> Optional[str]:
+        """Path đã chuẩn hóa (mục 2.1a): viết thường, cắt query string, bỏ '/' cuối."""
+        return normalize_path(self.path)
+
+    @property
+    def path_segments(self) -> list[str]:
+        p = self.path_norm
+        return [seg for seg in p.split("/") if seg] if p else []
 
     def identity_key(self) -> IdentityKey:
         return IdentityKey(
@@ -242,12 +300,31 @@ class ConfigEvidenceRecord:
     run_id: Optional[str] = None
 
     def pair_key(self) -> Tuple[str, str, str, str]:
+        """Đích chưa phân giải (FOUND_UNRESOLVED, destination = None) dùng
+        `("raw", raw_host)` làm đích — mỗi host lạ là 1 cặp riêng (TIER1_DESIGN.md mục 1b).
+        Bản cũ trả (ns, svc, None, None): mọi đích chưa phân giải của cùng 1 nguồn dồn vào
+        1 ô và chỉ 1 đích ra kết quả."""
+        if self.destination_canonical_service is None:
+            return (self.source_namespace, self.source_canonical_service, RAW_DESTINATION_NS, self.raw_host or "")
         return (
             self.source_namespace,
             self.source_canonical_service,
             self.destination_namespace,
             self.destination_canonical_service,
         )
+
+    @property
+    def is_unresolved_destination(self) -> bool:
+        return self.destination_canonical_service is None
+
+    @property
+    def sort_key(self) -> str:
+        """Thứ tự tất định khi chọn config đại diện (mục 1b): item_id đầu tiên."""
+        return self.evidence_refs[0].item_id if self.evidence_refs else ""
+
+
+# Namespace giả cho đích chưa phân giải trong pair_key (mục 1b).
+RAW_DESTINATION_NS = "raw"
 
 
 # ---------------------------------------------------------------------------
@@ -290,3 +367,13 @@ class DependencyEdgeResult:
     escalation_reason: Optional[str] = None
     manual_selector_reason: Optional[str] = None  # lý do NEEDS_MANUAL_SELECTOR (mục 3b)
     dns_auto_allow: bool = False  # mục 7 — DNS auto-allow, tách hẳn khỏi 5-state chính thức
+
+    # --- 15/10/2026 ---
+    port_source: Optional[str] = None
+    traffic_days: list[str] = field(default_factory=list)
+    flags: list[str] = field(default_factory=list)
+    # EXACT | PORT_ONLY | PAIR_ONLY (mục 1b) — None nếu cạnh không có config
+    config_match_level: Optional[str] = None
+    # VERIFIED_MONITORING (Planner tự mở, mục 5 nhánh nhiễu) — None nếu không
+    auto_allow_reason: Optional[str] = None
+    snapshot_time: Optional[str] = None

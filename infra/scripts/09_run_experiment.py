@@ -26,36 +26,11 @@ def _add_tier1_to_path(tier1_path: str) -> None:
 
 
 def _load_trial_input(path: Path):
-    """Ngược lại với 08_export_trial_data.py::_to_jsonable — dựng lại đúng dataclass
-    (TrafficSeries/ConfigEvidenceRecord) từ JSON thô, vì `run_tier1()`/`run_baseline_*()`
-    thao tác trên dataclass thật (đọc field bằng thuộc tính), không phải dict."""
-    from tier1.experiment import TrialInput
-    from tier1.schema import ConfigEvidenceRecord, ConfigFinding, Scope, ServiceRef, TrafficClass, TrafficSeries
+    """Dựng lại `TrialInput` từ JSON — dùng chung `tier1.trial_io` (đọc được cả file cũ
+    trước 15/10: port 0 -> None, thiếu traffic_days -> gộp cạnh lấy max)."""
+    from tier1.trial_io import load_trial_input
 
-    raw = json.loads(path.read_text())
-
-    def _series(d: dict) -> TrafficSeries:
-        d = dict(d)
-        ref = d.pop("destination_service_ref", None)
-        d["destination_service_ref"] = ServiceRef(**ref) if ref else None
-        tc = d.pop("traffic_class", None)
-        d["traffic_class"] = TrafficClass(tc) if tc else None
-        return TrafficSeries(**d)
-
-    def _config(d: dict) -> ConfigEvidenceRecord:
-        d = dict(d)
-        d["config_finding"] = ConfigFinding(d["config_finding"])
-        d["scope"] = Scope(d["scope"])
-        return ConfigEvidenceRecord(**d)
-
-    ground_truth = {tuple(k.split("|")): bool(v) for k, v in raw["ground_truth"].items()}
-
-    return TrialInput(
-        trial_id=raw["trial_id"],
-        traffic_series=[_series(s) for s in raw["traffic_series"]],
-        config_evidence=[_config(c) for c in raw["config_evidence"]],
-        ground_truth=ground_truth,
-    )
+    return load_trial_input(path)
 
 
 def _report_to_jsonable(report) -> dict:
@@ -114,10 +89,26 @@ def main() -> None:
         default=str(Path(__file__).resolve().parent.parent.parent / "tier1_inference"),
     )
     parser.add_argument("--out", default=None, help="Ghi report dạng JSON ra file (tuỳ chọn)")
+    parser.add_argument(
+        "--validate-selectors", action="store_true",
+        help="Kiểm selector cạnh STRONG bằng KubernetesSelectorValidator THẬT (chỉ đọc Service/Pod, "
+             "cần cluster còn chạy) — đánh giá chính thức nên bật (TIER1_DESIGN.md mục 3b). Mặc định "
+             "dùng validator giả (có service_ref là qua) như số liệu cũ.",
+    )
+    parser.add_argument("--kubeconfig", default=None)
     args = parser.parse_args()
 
     _add_tier1_to_path(args.tier1_path)
     from tier1.experiment import run_experiment
+
+    selector_validator = None
+    if args.validate_selectors:
+        from tier1.selector_validation import KubernetesSelectorValidator
+
+        selector_validator = KubernetesSelectorValidator(kubeconfig_path=args.kubeconfig)
+        print("Kiểm selector: KubernetesSelectorValidator (cluster thật, chỉ đọc)")
+    else:
+        print("Kiểm selector: MockSelectorValidator (GIẢ) — thêm --validate-selectors cho đánh giá chính thức")
 
     trial_data_dir = Path(args.trial_data_dir)
     files = sorted(trial_data_dir.glob("*.json"))
@@ -126,8 +117,12 @@ def main() -> None:
 
     trials = [_load_trial_input(f) for f in files]
     print(f"Đã nạp {len(trials)} trial: {[t.trial_id for t in trials]}")
+    legacy = sum(1 for f in files if json.loads(f.read_text()).get("export_format", 1) < 2)
+    if legacy:
+        print(f"!!! {legacy} file xuất TRƯỚC 15/10 (không có traffic_days/port) — số ngày của cạnh nhiều path "
+              f"bị tính theo max, port không biết. Chạy lại 08_export_trial_data.py để có số đúng.")
 
-    report = run_experiment(trials)
+    report = run_experiment(trials, selector_validator=selector_validator)
     _print_summary(report)
 
     if args.out:

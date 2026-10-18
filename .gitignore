@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.sqlite3
+.venv/
+venv/
+
+# --- bí mật: KHÔNG BAO GIỜ commit ---
+*.pem
+*.key
+.env
+.env.*
+kubeconfig*
+*.kubeconfig
+
+# --- sinh ra khi chạy ---
+.cache/llm_extraction_cache.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.rej
+*.orig

@@ -69,17 +69,44 @@ class MockSelectorValidator:
         return ValidationResult(passed=True, pod_count=1, overlapping_services=[])
 
 
-class KubernetesSelectorValidator:
-    """Hiện thực thật bằng thư viện `kubernetes` chính thức (đúng lựa chọn công nghệ đã
-    chốt ở CONFIG_EVIDENCE_COLLECTOR.md mục 2: đọc thẳng kubeconfig, không subprocess kubectl).
+def pod_canonical_service(labels: dict, owner_name: str | None, pod_name: str) -> str:
+    """Canonical service của 1 pod — ĐÚNG thứ tự Istio tự suy ra (và cùng thứ tự
+    `config_collector/identity.py` dùng): `service.istio.io/canonical-name` ->
+    `app.kubernetes.io/name` -> `app` -> tên workload.
 
-    Yêu cầu: gói `kubernetes` đã cài, kubeconfig hợp lệ trỏ vào cluster thật.
-    Không được gọi trong examples/run_example.py (không có cluster trong môi trường demo).
+    Sửa lỗi 15/10/2026: bản cũ chỉ đọc nhãn `security.istio.io/canonical-name` (sai tên,
+    và phần lớn pod không gắn nhãn canonical tường minh) -> trên cluster thật mọi cạnh
+    STRONG đều rớt NEEDS_MANUAL_SELECTOR."""
+    labels = labels or {}
+    explicit = labels.get("service.istio.io/canonical-name") or labels.get("security.istio.io/canonical-name")
+    if explicit:
+        return explicit
+    for key in ("app.kubernetes.io/name", "app"):
+        if labels.get(key):
+            return labels[key]
+    workload = owner_name or pod_name
+    template_hash = labels.get("pod-template-hash")
+    if template_hash and workload.endswith(f"-{template_hash}"):
+        workload = workload[: -(len(template_hash) + 1)]  # ReplicaSet "frontend-7d9f" -> Deployment "frontend"
+    return workload
+
+
+class KubernetesSelectorValidator:
+    """Hiện thực thật bằng thư viện `kubernetes` chính thức (đọc thẳng kubeconfig, không
+    subprocess kubectl). CHỈ ĐỌC Service/Pod — cùng quyền với Config Collector.
+
+    Đọc Service + Pod của mỗi namespace MỘT LẦN cho mỗi instance (15/10/2026) rồi dùng chung
+    cho mọi cạnh — vẫn là dữ liệu đọc TẠI THỜI ĐIỂM kiểm, không phải cache cũ: tạo instance
+    mới cho mỗi lần chạy (Tier 1 báo sớm, Planner kiểm lại bắt buộc trước khi sinh YAML).
+    Bản cũ: mỗi cạnh liệt kê lại mọi Service và pod của từng Service.
+
+    Truyền `core_api` để test (fake) — không cần kubeconfig.
     """
 
-    def __init__(self, kubeconfig_path: str | None = None):
+    def __init__(self, kubeconfig_path: str | None = None, core_api=None):
         self._kubeconfig_path = kubeconfig_path
-        self._client = None  # lazy init, chỉ import `kubernetes` khi thật sự dùng
+        self._client = core_api
+        self._ns_cache: dict[str, tuple[list, list]] = {}
 
     def _ensure_client(self):
         if self._client is not None:
@@ -92,6 +119,19 @@ class KubernetesSelectorValidator:
             k8s_config.load_kube_config()
         self._client = client.CoreV1Api()
 
+    def _namespace_state(self, namespace: str) -> tuple[list, list]:
+        if namespace not in self._ns_cache:
+            self._ensure_client()
+            services = self._client.list_namespaced_service(namespace).items
+            pods = self._client.list_namespaced_pod(namespace).items
+            self._ns_cache[namespace] = (list(services), list(pods))
+        return self._ns_cache[namespace]
+
+    @staticmethod
+    def _matches(selector: dict, pod) -> bool:
+        labels = pod.metadata.labels or {}
+        return all(labels.get(k) == v for k, v in selector.items())
+
     def validate(self, edge: DependencyEdgeResult) -> ValidationResult:
         ref: Optional[ServiceRef] = edge.destination_service_ref
         if ref is None:
@@ -100,15 +140,15 @@ class KubernetesSelectorValidator:
                 reason="Không có destination_service_ref — không thể tra Service thật.",
             )
 
-        self._ensure_client()
-        api = self._client
-
-        # Bước 1: query trực tiếp Service.spec.selector, không dùng cache
         try:
-            svc = api.read_namespaced_service(ref.service_name, ref.service_namespace)
+            services, pods = self._namespace_state(ref.service_namespace)
         except Exception as e:  # pragma: no cover - phụ thuộc cluster thật
-            return ValidationResult(passed=False, reason=f"Không đọc được Service: {e}")
+            return ValidationResult(passed=False, reason=f"Không đọc được Service/Pod: {e}")
 
+        # Bước 1: Service.spec.selector
+        svc = next((x for x in services if x.metadata.name == ref.service_name), None)
+        if svc is None:
+            return ValidationResult(passed=False, reason=f"Không tìm thấy Service '{ref.service_name}'.")
         selector = svc.spec.selector or {}
         if not selector:
             return ValidationResult(
@@ -116,55 +156,46 @@ class KubernetesSelectorValidator:
                 reason="Service không có spec.selector (dùng Endpoints thủ công) — "
                        "dùng ipBlock thay vì podSelector, bắt buộc review thủ công (mục 3b).",
             )
-
         label_selector = ",".join(f"{k}={v}" for k, v in selector.items())
 
         # Bước 2: tập pod mà selector trả về không rỗng
-        pods = api.list_namespaced_pod(ref.service_namespace, label_selector=label_selector)
-        if not pods.items:
-            return ValidationResult(
-                passed=False,
-                reason=f"Selector '{label_selector}' không khớp pod nào hiện tại.",
-            )
-        matched_pod_names = {p.metadata.name for p in pods.items}
+        matched = [p for p in pods if self._matches(selector, p)]
+        if not matched:
+            return ValidationResult(passed=False, reason=f"Selector '{label_selector}' không khớp pod nào hiện tại.")
+        matched_names = {p.metadata.name for p in matched}
 
-        # Bước 3: overlap check — mọi Service khác trong namespace có selector giao với selector này?
-        all_services = api.list_namespaced_service(ref.service_namespace)
+        # Bước 3: overlap — Service khác cùng namespace chọn trùng pod?
         overlapping: list[str] = []
-        for other in all_services.items:
+        for other in services:
             if other.metadata.name == ref.service_name:
                 continue
             other_selector = other.spec.selector or {}
             if not other_selector:
                 continue
-            other_label_selector = ",".join(f"{k}={v}" for k, v in other_selector.items())
-            other_pods = api.list_namespaced_pod(ref.service_namespace, label_selector=other_label_selector)
-            other_pod_names = {p.metadata.name for p in other_pods.items}
-            if matched_pod_names & other_pod_names:
+            if matched_names & {p.metadata.name for p in pods if self._matches(other_selector, p)}:
                 overlapping.append(other.metadata.name)
-
         if overlapping:
             return ValidationResult(
                 passed=False,
                 reason=f"Selector giao với Service khác trong cùng namespace: {overlapping} "
                        "— selector không đủ đặc thù.",
-                pod_count=len(matched_pod_names),
+                pod_count=len(matched_names),
                 overlapping_services=overlapping,
             )
 
-        # Bước 4: đối chiếu ngược ownerReferences -> xác nhận đúng workload đã quan sát traffic
-        expected_workload = edge.identity_key.destination_canonical_service
-        for p in pods.items:
-            canonical = (p.metadata.labels or {}).get("security.istio.io/canonical-name")
-            if canonical != expected_workload:
+        # Bước 4: canonical của từng pod khớp phải đúng workload đã quan sát traffic
+        expected = edge.identity_key.destination_canonical_service
+        for p in matched:
+            owners = p.metadata.owner_references or []
+            canonical = pod_canonical_service(p.metadata.labels or {}, owners[0].name if owners else None, p.metadata.name)
+            if canonical != expected:
                 return ValidationResult(
                     passed=False,
                     reason=(
-                        f"Pod '{p.metadata.name}' khớp selector nhưng nhãn canonical-name "
-                        f"('{canonical}') không khớp workload đã quan sát traffic "
-                        f"('{expected_workload}')."
+                        f"Pod '{p.metadata.name}' khớp selector nhưng canonical ('{canonical}') "
+                        f"không khớp workload đã quan sát traffic ('{expected}')."
                     ),
-                    pod_count=len(matched_pod_names),
+                    pod_count=len(matched_names),
                 )
 
-        return ValidationResult(passed=True, pod_count=len(matched_pod_names), overlapping_services=[])
+        return ValidationResult(passed=True, pod_count=len(matched_names), overlapping_services=[])

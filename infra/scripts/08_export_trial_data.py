@@ -17,6 +17,14 @@ Yêu cầu trước khi chạy:
   - `pip install kubernetes requests` (2 thư viện thật của 2 client, lazy-import nên chỉ cần
     khi thật sự chạy, không cần khi chạy unit test).
 
+Cập nhật 15/10/2026: nguồn metrics chọn được Prometheus hoặc VictoriaMetrics (--metrics-backend,
+qua vmauth của repo LOG_METRIC), tùy chọn đọc access log ztunnel từ VictoriaLogs (--logs-url),
+đọc cluster context 1 lần (suy port từ Service, path probe, danh tính monitoring, ServiceEntry —
+gắn thẳng vào từng series nên 09_run_experiment chạy offline vẫn đúng), và ghi thêm
+`series_daily_counts` (số request theo ngày của từng series, cùng thứ tự `traffic_series`) cho
+ablation hysteresis (10_hysteresis_ablation.py). Chạy lại script này trên snapshot Prometheus đã
+chụp là đủ — KHÔNG cần thu lại 7 ngày.
+
 Dùng:
     python3 08_export_trial_data.py trial-01 trial-02 ... \\
         --prometheus-url http://localhost:9090 \\
@@ -86,6 +94,33 @@ def _to_jsonable(obj):
     return obj
 
 
+def _make_clients(prometheus_url: str, metrics_backend: str | None, logs_url: str | None, allow_partial: bool):
+    from tier1.log_collector import HttpVictoriaLogsClient
+    from tier1.traffic_collector import make_metrics_client
+
+    metrics = make_metrics_client(prometheus_url, metrics_backend, allow_partial=allow_partial)
+    logs = HttpVictoriaLogsClient(logs_url) if logs_url else None
+    return metrics, logs
+
+
+def _collect_traffic_with_context(k8s_reader, prometheus_url, metrics_backend, logs_url, allow_partial,
+                                  window_days, namespaces, monitoring_services):
+    from tier1.cluster_context import build_cluster_context
+    from tier1.traffic_collector import collect_traffic
+
+    metrics, logs = _make_clients(prometheus_url, metrics_backend, logs_url, allow_partial)
+    context = build_cluster_context(k8s_reader, monitoring_services)
+    return collect_traffic(metrics, window_days=window_days, namespaces=namespaces, injected=None,
+                           context=context, log_client=logs)
+
+
+def _port_source_summary(series) -> dict:
+    out: dict = {}
+    for s in series:
+        out[s.port_source] = out.get(s.port_source, 0) + 1
+    return out
+
+
 def export_one_trial(
     trial_id: str,
     prometheus_url: str,
@@ -94,9 +129,12 @@ def export_one_trial(
     window_days: int,
     kubeconfig_path: str | None,
     cache_db_path: str | None = None,
+    metrics_backend: str | None = None,
+    logs_url: str | None = None,
+    allow_partial: bool = False,
+    monitoring_services: tuple = ("istio-system/prometheus",),
 ) -> Path:
     from tier1.config_collector import KubernetesReader, collect_config_evidence
-    from tier1.traffic_collector import HttpPrometheusClient, collect_traffic
 
     gt_path = ground_truth_dir / f"{trial_id}.json"
     if not gt_path.exists():
@@ -120,10 +158,11 @@ def export_one_trial(
     )
     print(f"[{trial_id}]   -> {len(config_evidence)} config evidence record")
 
-    print(f"[{trial_id}] Đọc traffic {window_days} ngày từ Prometheus ({prometheus_url})...")
-    prom_client = HttpPrometheusClient(base_url=prometheus_url)
-    collection = collect_traffic(
-        prom_client, window_days=window_days, namespaces=[trial_id], injected=None
+    print(f"[{trial_id}] Đọc traffic {window_days} ngày ({metrics_backend or 'prometheus'}: {prometheus_url}"
+          f"{', logs: ' + logs_url if logs_url else ''})...")
+    collection = _collect_traffic_with_context(
+        k8s_reader, prometheus_url, metrics_backend, logs_url, allow_partial,
+        window_days, [trial_id], monitoring_services,
     )
     if collection.scrape_gap.has_gap:
         print(
@@ -131,13 +170,15 @@ def export_one_trial(
             f"{collection.scrape_gap.affected_targets} -- kết quả increase() có thể KHÔNG "
             f"đáng tin cậy cho các target này (xem TRAFFIC_COLLECTION_PIPELINE.md mục 2)."
         )
-    print(f"[{trial_id}]   -> {len(collection.series)} traffic series")
+    print(f"[{trial_id}]   -> {len(collection.series)} traffic series, port: {_port_source_summary(collection.series)}")
 
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{trial_id}.json"
     payload = {
         "trial_id": trial_id,
+        "export_format": 2,
         "traffic_series": _to_jsonable(collection.series),
+        "series_daily_counts": collection.daily_counts,
         "config_evidence": _to_jsonable(config_evidence),
         "ground_truth": {"|".join(k): v for k, v in ground_truth.items()},
         "scrape_gap": _to_jsonable(collection.scrape_gap),
@@ -165,6 +206,7 @@ def split_shared_collection(
     scrape_gap,
     ground_truth_dir: Path,
     out_dir: Path,
+    daily_counts: list | None = None,
 ) -> list[Path]:
     """Phần THUẦN (không đụng K8s/Prometheus thật) của `export_shared_trials` — tách 1
     lần thu thập traffic/config CHUNG thành N `TrialInput` riêng, bằng cách so khớp
@@ -196,13 +238,18 @@ def split_shared_collection(
         def _owned(pair_key: tuple, _vtid: str = vtid) -> bool:
             return pair_key in real_pairkeys or _vtid in owner_map.get(pair_key, [])
 
-        trial_traffic = [s for s in traffic_series if _owned(s.identity_key().pair_key())]
+        daily = daily_counts if daily_counts is not None else [{} for _ in traffic_series]
+        kept_idx = [i for i, s in enumerate(traffic_series) if _owned(s.identity_key().pair_key())]
+        trial_traffic = [traffic_series[i] for i in kept_idx]
+        trial_daily = [daily[i] for i in kept_idx]
         trial_config = [c for c in config_evidence if _owned(c.pair_key())]
 
         out_path = out_dir / f"{vtid}.json"
         payload = {
             "trial_id": vtid,
+            "export_format": 2,
             "traffic_series": _to_jsonable(trial_traffic),
+            "series_daily_counts": trial_daily,
             "config_evidence": _to_jsonable(trial_config),
             "ground_truth": {"|".join(k): v for k, v in ground_truth.items()},
             "scrape_gap": _to_jsonable(scrape_gap),
@@ -227,13 +274,16 @@ def export_shared_trials(
     window_days: int,
     kubeconfig_path: str | None,
     cache_db_path: str | None = None,
+    metrics_backend: str | None = None,
+    logs_url: str | None = None,
+    allow_partial: bool = False,
+    monitoring_services: tuple = ("istio-system/prometheus",),
 ) -> list[Path]:
     """Chế độ "hạ tầng dùng chung" (05_deploy_shared.sh) — 1 namespace K8s DUY NHẤT chứa
     1 Online Boutique thật + N virtual trial. CHỈ thu thập traffic/config MỘT LẦN từ
     `shared_namespace` (không phải N lần như model namespace-riêng) rồi giao cho
     `split_shared_collection` tách thành N `TrialInput` riêng (xem docstring hàm đó)."""
     from tier1.config_collector import KubernetesReader, collect_config_evidence
-    from tier1.traffic_collector import HttpPrometheusClient, collect_traffic
 
     print(f"[{shared_namespace}] Đọc config evidence từ cluster thật (1 LẦN, dùng chung cho {len(virtual_trial_ids)} virtual trial)...")
     k8s_reader = KubernetesReader(kubeconfig_path=kubeconfig_path)
@@ -246,10 +296,11 @@ def export_shared_trials(
     )
     print(f"[{shared_namespace}]   -> {len(all_config_evidence)} config evidence record (TRƯỚC khi tách theo virtual trial)")
 
-    print(f"[{shared_namespace}] Đọc traffic {window_days} ngày từ Prometheus (1 LẦN, {prometheus_url})...")
-    prom_client = HttpPrometheusClient(base_url=prometheus_url)
-    collection = collect_traffic(
-        prom_client, window_days=window_days, namespaces=[shared_namespace], injected=None
+    print(f"[{shared_namespace}] Đọc traffic {window_days} ngày (1 LẦN, {metrics_backend or 'prometheus'}: "
+          f"{prometheus_url}{', logs: ' + logs_url if logs_url else ''})...")
+    collection = _collect_traffic_with_context(
+        k8s_reader, prometheus_url, metrics_backend, logs_url, allow_partial,
+        window_days, [shared_namespace], monitoring_services,
     )
     if collection.scrape_gap.has_gap:
         print(
@@ -257,7 +308,8 @@ def export_shared_trials(
             f"{collection.scrape_gap.affected_targets} -- kết quả increase() có thể KHÔNG "
             f"đáng tin cậy cho các target này (xem TRAFFIC_COLLECTION_PIPELINE.md mục 2)."
         )
-    print(f"[{shared_namespace}]   -> {len(collection.series)} traffic series (TRƯỚC khi tách theo virtual trial)")
+    print(f"[{shared_namespace}]   -> {len(collection.series)} traffic series (TRƯỚC khi tách theo virtual trial), "
+          f"port: {_port_source_summary(collection.series)}, cạnh chỉ thấy qua log: {collection.log_series_added}")
 
     return split_shared_collection(
         shared_namespace=shared_namespace,
@@ -268,6 +320,7 @@ def export_shared_trials(
         scrape_gap=collection.scrape_gap,
         ground_truth_dir=ground_truth_dir,
         out_dir=out_dir,
+        daily_counts=collection.daily_counts,
     )
 
 
@@ -275,7 +328,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("trial_ids", nargs="*", help="Danh sách trial_id cần export, vd: trial-01 trial-02")
     parser.add_argument("--all", action="store_true", help="Export MỌI trial_id đang có file ground-truth")
-    parser.add_argument("--prometheus-url", default="http://localhost:9090")
+    parser.add_argument("--prometheus-url", default="http://localhost:9090",
+                        help="Prometheus, hoặc vmauth của LOG_METRIC: http://localhost:8427/select/0/prometheus")
+    parser.add_argument("--metrics-backend", default=None, choices=["prometheus", "victoriametrics"],
+                        help="mặc định: env TRAFFIC_METRICS_BACKEND, rồi prometheus")
+    parser.add_argument("--allow-partial", action="store_true",
+                        help="[victoriametrics] chấp nhận kết quả isPartial (mặc định: báo lỗi)")
+    parser.add_argument("--logs-url", default=None,
+                        help="VictoriaLogs/vmauth (vd http://localhost:8427) — đọc access log ztunnel")
+    parser.add_argument("--monitoring-service", action="append", default=None,
+                        help="ns/tên-service Prometheus/vmagent (lặp lại được; mặc định istio-system/prometheus)")
     parser.add_argument("--window-days", type=int, default=7)
     parser.add_argument("--kubeconfig", default=None, help="Mặc định: dùng kubeconfig đang active (~/.kube/config)")
     parser.add_argument(
@@ -317,6 +379,10 @@ def main() -> None:
 
     out_dir = Path(args.out_dir)
     cache_db_path = args.cache_db or None
+    traffic_kwargs = dict(
+        metrics_backend=args.metrics_backend, logs_url=args.logs_url, allow_partial=args.allow_partial,
+        monitoring_services=tuple(args.monitoring_service or ("istio-system/prometheus",)),
+    )
 
     if args.shared:
         if not args.owner_map:
@@ -332,6 +398,7 @@ def main() -> None:
             window_days=args.window_days,
             kubeconfig_path=args.kubeconfig,
             cache_db_path=cache_db_path,
+            **traffic_kwargs,
         )
         return
     failures = []
@@ -345,6 +412,7 @@ def main() -> None:
                 window_days=args.window_days,
                 kubeconfig_path=args.kubeconfig,
                 cache_db_path=cache_db_path,
+                **traffic_kwargs,
             )
         except Exception as exc:  # noqa: BLE001 — muốn tiếp tục export các trial còn lại dù 1 trial lỗi
             print(f"[{trial_id}] !!! LỖI khi export: {exc}", file=sys.stderr)

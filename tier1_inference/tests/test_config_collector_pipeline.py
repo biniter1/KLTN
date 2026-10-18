@@ -101,11 +101,18 @@ def test_collect_config_evidence_writes_all_five_tables_when_db_path_given(tmp_p
     ).fetchall()
     assert evidence_rows == [("cartservice", "FOUND_STRUCTURAL", 7070)]
 
-    quality_rows = dict(
-        conn.execute("SELECT metric, value FROM collection_quality_log WHERE run_id='trial-01'").fetchall()
-    )
-    assert quality_rows["evidence_total"] == 1
-    assert quality_rows["found_structural"] == 1
+    conn.row_factory = sqlite3.Row
+    quality_rows = conn.execute(
+        "SELECT * FROM collection_quality_log WHERE run_id='trial-01'"
+    ).fetchall()
+    assert len(quality_rows) == 1  # DẠNG NGANG (DASHBOARD_DESIGN.md mục 3.A): 1 dòng/module
+    q = quality_rows[0]
+    assert q["module"] == "config_collector"
+    assert q["evidence_total"] == 1
+    assert q["candidates_found"] == 1
+    assert q["llm_calls"] == 1
+    assert q["llm_cache_hits"] == 0
+    assert q["refs_extracted"] == 1
 
 
 def test_sqlite_cache_persists_across_separate_collect_calls(tmp_path):
@@ -153,3 +160,77 @@ def test_collect_config_evidence_unresolved_destination_has_none_identity():
     assert records[0].config_finding == ConfigFinding.FOUND_UNRESOLVED
     assert records[0].destination_canonical_service is None
     assert records[0].raw_host == "totallyunknownhost"
+
+
+# ---------------------------------------------------------------------------
+# collection_quality_log dạng ngang (DASHBOARD_DESIGN.md mục 3.A) + bộ đếm LLM
+# ---------------------------------------------------------------------------
+
+
+def test_stats_out_filled_with_section_3a_column_names():
+    pods, services = _pods_and_service()
+    stats: dict = {}
+    collect_config_evidence(
+        FakeK8sReader(pods=pods, services=services), snapshot_id="s", namespaces=[NS],
+        llm_client=FakeLLMClient(responses=[_VALID_RESPONSE]), stats_out=stats,
+    )
+    assert stats["workloads_scanned"] == 2
+    assert stats["chunks_sent"] == 1
+    assert stats["llm_calls"] == 1
+    assert set(stats["items_dropped_by_funnel"]) == {"EMPTY", "BOOLEAN", "BINARY", "SECRET_REF"}
+    assert stats["candidates_found"] == 1
+    assert stats["candidates_found_unresolved"] == 0
+
+
+def test_llm_cache_hit_counted_on_second_call(tmp_path):
+    db_path = tmp_path / "trial.sqlite"
+    pods, services = _pods_and_service()
+    collect_config_evidence(FakeK8sReader(pods=pods, services=services), snapshot_id="s1", namespaces=[NS],
+                            llm_client=FakeLLMClient(responses=[_VALID_RESPONSE]), run_id="r1", db_path=db_path)
+    stats: dict = {}
+    collect_config_evidence(FakeK8sReader(pods=pods, services=services), snapshot_id="s2", namespaces=[NS],
+                            llm_client=FakeLLMClient(responses=[]), run_id="r2", db_path=db_path, stats_out=stats)
+    assert stats["llm_calls"] == 0
+    assert stats["llm_cache_hits"] == 1
+
+
+def test_write_quality_log_false_skips_row_but_still_writes_other_tables(tmp_path):
+    db_path = tmp_path / "trial.sqlite"
+    pods, services = _pods_and_service()
+    collect_config_evidence(FakeK8sReader(pods=pods, services=services), snapshot_id="s", namespaces=[NS],
+                            llm_client=FakeLLMClient(responses=[_VALID_RESPONSE]), run_id="r",
+                            db_path=db_path, write_quality_log=False)
+    conn = sqlite3.connect(str(db_path))
+    assert conn.execute("SELECT COUNT(*) FROM collection_quality_log").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM config_evidence").fetchone()[0] == 1
+
+
+def test_legacy_vertical_quality_log_renamed_not_deleted(tmp_path):
+    from tier1.config_collector import store
+
+    db_path = tmp_path / "old.sqlite"
+    old = sqlite3.connect(str(db_path))
+    old.executescript(
+        "CREATE TABLE collection_quality_log (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL,"
+        " metric TEXT NOT NULL, value REAL NOT NULL, created_at TEXT NOT NULL);"
+        "CREATE INDEX idx_collection_quality_log_run ON collection_quality_log (run_id);"
+        "INSERT INTO collection_quality_log (run_id, metric, value, created_at) VALUES ('t1','evidence_total',3,'x');"
+    )
+    old.commit()
+    old.close()
+
+    conn = store.connect(db_path)
+    legacy = conn.execute("SELECT run_id, metric, value FROM collection_quality_log_legacy").fetchall()
+    assert legacy == [("t1", "evidence_total", 3.0)]
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(collection_quality_log)")}
+    assert "module" in cols and "metric" not in cols
+    store.connect(db_path).close()  # idempotent — gọi lại không lỗi
+
+
+def test_insert_quality_log_rejects_unknown_column(tmp_path):
+    import pytest
+    from tier1.config_collector import store
+
+    conn = store.connect(tmp_path / "q.sqlite")
+    with pytest.raises(ValueError):
+        store.insert_quality_log(conn, "r", "config_collector", {"not_a_column": 1})

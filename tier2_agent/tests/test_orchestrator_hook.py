@@ -92,3 +92,54 @@ def test_does_not_update_row_for_a_different_edge(make_escalation):
 
     affected = apply_tier2_result(conn, escalation, "run1", _result())
     assert affected == 0
+
+
+# ---------------------------------------------------------------------------
+# Tích hợp Batch Orchestrator: port NULL, attempt_id, tier2_session_id
+# ---------------------------------------------------------------------------
+
+
+def _table_with_rows(escalation, rows):
+    """rows: list (run_id, attempt_id, port)."""
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE dependency_evidence (run_id TEXT, attempt_id TEXT, source_namespace TEXT, "
+        "source_canonical_service TEXT, source_service_account TEXT, "
+        "destination_namespace TEXT, destination_canonical_service TEXT, "
+        "protocol TEXT, port INTEGER)"
+    )
+    for run_id, attempt_id, port in rows:
+        conn.execute(
+            "INSERT INTO dependency_evidence VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (run_id, attempt_id, escalation.source_namespace, escalation.source_canonical_service,
+             escalation.source_service_account, escalation.destination_namespace,
+             escalation.destination_canonical_service, escalation.protocol, port),
+        )
+    conn.commit()
+    return conn
+
+
+def test_null_port_edge_is_matched(make_escalation):
+    """Cạnh potential-only (NOT_OBSERVED + config mù) hay có port=None — trước đây
+    `port = ?` với NULL khớp 0 dòng."""
+    escalation = make_escalation(
+        dependency_status="NOT_OBSERVED", config_finding="FOUND_UNRESOLVED", port=None, protocol="UNKNOWN",
+    )
+    conn = _table_with_rows(escalation, [("trial-07", "trial-07.a1", None)])
+    assert apply_tier2_result(conn, escalation, "trial-07", _result()) == 1
+
+
+def test_attempt_id_limits_update_to_current_attempt(make_escalation):
+    escalation = make_escalation()
+    conn = _table_with_rows(
+        escalation, [("trial-07", "trial-07.a1", escalation.port), ("trial-07", "trial-07.a2", escalation.port)]
+    )
+    affected = apply_tier2_result(
+        conn, escalation, "trial-07", _result(final="CONFLICTING_EVIDENCE"),
+        attempt_id="trial-07.a2", tier2_session_id="trial-07.a2#abc",
+    )
+    assert affected == 1
+    rows = conn.execute(
+        "SELECT attempt_id, tier2_status, tier2_session_id FROM dependency_evidence ORDER BY attempt_id"
+    ).fetchall()
+    assert rows == [("trial-07.a1", None, None), ("trial-07.a2", "CONFLICTING_EVIDENCE", "trial-07.a2#abc")]

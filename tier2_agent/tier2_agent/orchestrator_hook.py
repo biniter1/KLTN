@@ -26,6 +26,7 @@ này không có DDL thật của bảng đó, nên hàm dưới đây:
 from __future__ import annotations
 
 import sqlite3
+from typing import Optional
 
 from .escalation import EscalationRecord
 from .models import RoundResult
@@ -57,12 +58,14 @@ CREATE TABLE IF NOT EXISTS dependency_evidence (
 """
 
 
+_TIER2_COLUMNS = ("tier2_status", "tier2_original_status", "tier2_session_id", "attempt_id")
+
+
 def _ensure_tier2_columns(conn: sqlite3.Connection) -> None:
     cols = {row[1] for row in conn.execute("PRAGMA table_info(dependency_evidence)")}
-    if "tier2_status" not in cols:
-        conn.execute("ALTER TABLE dependency_evidence ADD COLUMN tier2_status TEXT")
-    if "tier2_original_status" not in cols:
-        conn.execute("ALTER TABLE dependency_evidence ADD COLUMN tier2_original_status TEXT")
+    for col in _TIER2_COLUMNS:
+        if col not in cols:
+            conn.execute(f"ALTER TABLE dependency_evidence ADD COLUMN {col} TEXT")
 
 
 def apply_tier2_result(
@@ -72,10 +75,21 @@ def apply_tier2_result(
     result: RoundResult,
     *,
     create_if_missing: bool = False,
+    attempt_id: Optional[str] = None,
+    tier2_session_id: Optional[str] = None,
 ) -> int:
     """UPDATE `dependency_evidence` với 2 cột `tier2_status`/`tier2_original_status`
     (mục 11.3). Trả số dòng bị ảnh hưởng (0 nếu không tìm thấy dòng khớp —
-    gọi nên coi đây là lỗi cấu hình, KHÔNG âm thầm bỏ qua)."""
+    gọi nên coi đây là lỗi cấu hình, KHÔNG âm thầm bỏ qua).
+
+    `attempt_id` (Batch Orchestrator): chỉ UPDATE đúng dòng của LẦN CHẠY hiện tại —
+    nếu 1 trial chạy lại, các dòng của lần chạy cũ (cùng `run_id`) không bị đụng tới.
+    `tier2_session_id`: ghi `agent_sessions.run_id` của phiên đã xử lý cạnh này
+    (DASHBOARD_DESIGN.md mục 4 — Tier 2 phải trỏ ngược về đúng cạnh + trial).
+
+    So khớp identity dùng `IS ?` thay vì `= ?`: cạnh potential-only (NOT_OBSERVED +
+    config mù) có thể có `port = NULL`, mà `NULL = NULL` trong SQL là FALSE -> trước
+    đây UPDATE khớp 0 dòng cho đúng loại cạnh hay escalate nhất."""
 
     table_exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='dependency_evidence'"
@@ -91,13 +105,18 @@ def apply_tier2_result(
 
     _ensure_tier2_columns(conn)
 
-    where_clause = " AND ".join(f"{col} = ?" for col in _IDENTITY_COLUMNS)
+    where_clause = " AND ".join(f"{col} IS ?" for col in _IDENTITY_COLUMNS)
     params = [getattr(escalation, col) for col in _IDENTITY_COLUMNS]
+    attempt_clause = ""
+    if attempt_id is not None:
+        attempt_clause = " AND attempt_id = ?"
+        params.append(attempt_id)
 
     cur = conn.execute(
-        f"UPDATE dependency_evidence SET tier2_status = ?, tier2_original_status = ? "
-        f"WHERE run_id = ? AND {where_clause}",
-        [result.final_status, result.original_agent_status, run_id, *params],
+        f"UPDATE dependency_evidence SET tier2_status = ?, tier2_original_status = ?, "
+        f"tier2_session_id = COALESCE(?, tier2_session_id) "
+        f"WHERE run_id = ? AND {where_clause}{attempt_clause}",
+        [result.final_status, result.original_agent_status, tier2_session_id, run_id, *params],
     )
     conn.commit()
     return cur.rowcount

@@ -10,7 +10,7 @@ from tier1.schema import (
     TrafficClass,
 )
 
-from .conftest import make_identity_key
+from .conftest import make_identity_key, make_series
 
 
 def _ts(days_ago: float) -> str:
@@ -128,3 +128,69 @@ def test_insert_results_persists_bookkeeping_fields(tmp_path):
     assert row["escalation_reason"] == "test reason"
     assert row["dependency_status"] == "OBSERVED_WEAK"
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Cột Orchestration layer (run_id/attempt_id/identity_key...) + migration file cũ
+# ---------------------------------------------------------------------------
+
+
+def test_identity_key_as_string_matches_tier2_format():
+    key = make_identity_key(port=None)
+    assert key.as_string() == "default|frontend|frontend-sa|default|productcatalogservice|GRPC|None"
+
+
+def test_insert_results_records_run_attempt_and_identity_key(tmp_path):
+    from tier1 import storage
+    from tier1.pipeline import run_tier1
+
+    conn = storage.connect(tmp_path / "t.sqlite")
+    results = run_tier1([make_series()], [], "snap")
+    storage.insert_results(conn, results, run_id="trial-07", attempt_id="trial-07.a1")
+    row = conn.execute("SELECT run_id, attempt_id, identity_key FROM dependency_evidence").fetchone()
+    assert row == ("trial-07", "trial-07.a1", results[0].identity_key.as_string())
+
+
+def test_connect_migrates_old_file_without_orchestration_columns(tmp_path):
+    import sqlite3
+
+    from tier1 import storage
+
+    db = tmp_path / "old.sqlite"
+    old = sqlite3.connect(str(db))
+    old.execute("CREATE TABLE dependency_evidence (id INTEGER PRIMARY KEY, source_namespace TEXT NOT NULL,"
+                " source_canonical_service TEXT NOT NULL, destination_namespace TEXT NOT NULL,"
+                " destination_canonical_service TEXT NOT NULL, protocol TEXT NOT NULL, port INTEGER,"
+                " snapshot_id TEXT NOT NULL, created_at TEXT NOT NULL)")
+    old.commit()
+    old.close()
+    conn = storage.connect(db)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(dependency_evidence)")}
+    assert {"run_id", "attempt_id", "identity_key", "tier2_session_id", "tier2_status"} <= cols
+
+
+def test_unresolved_potential_only_edge_with_null_destination_can_be_stored(tmp_path):
+    """FOUND_UNRESOLVED -> destination_* = None (collector mục 6) phải ghi được."""
+    from tier1 import storage
+    from tier1.pipeline import run_tier1
+    from tier1.schema import ConfigEvidenceRecord, ConfigFinding, Scope
+
+    ev = ConfigEvidenceRecord(
+        source_namespace="default", source_canonical_service="checkoutservice",
+        source_service_account="checkoutservice", destination_namespace=None,
+        destination_canonical_service=None, destination_service_account=None,
+        protocol=None, port=None, port_unknown=True, config_finding=ConfigFinding.FOUND_UNRESOLVED,
+        evidence_source="env", scope=Scope.UNKNOWN, snapshot_id="s", collected_at="t",
+        raw_host="cartservice-nonexistent",
+    )
+    results = run_tier1([], [ev], "s")
+    assert results[0].escalate_to_tier2
+    conn = storage.connect(tmp_path / "t.sqlite")
+    storage.insert_results(conn, results, run_id="r", attempt_id="r.a1")
+    row = conn.execute(
+        "SELECT destination_namespace, destination_canonical_service, identity_key FROM dependency_evidence"
+    ).fetchone()
+    # 15/10: đích chưa phân giải -> canonical "raw:<host>" (mỗi host 1 dòng riêng), ns None
+    assert row[0] is None
+    assert row[1] == "raw:cartservice-nonexistent"
+    assert row[2].endswith("|None|raw:cartservice-nonexistent|UNKNOWN|None")

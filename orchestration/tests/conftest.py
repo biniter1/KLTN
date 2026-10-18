@@ -97,7 +97,10 @@ def _metric(src: str, dst: str, path: str) -> dict:
 
 def make_prometheus(traffic=TRAFFIC, now: datetime = NOW, window_days: int = 7, gap_targets=()):
     responses = {
-        build_scrape_gap_query(): [{"metric": {"instance": t}, "value": [0, "0"]} for t in gap_targets],
+        # collect_traffic kiểm gap trên CẢ cửa sổ (15/10) — job kubernetes-pods
+        build_scrape_gap_query("kubernetes-pods", window_days): [
+            {"metric": {"instance": t}, "value": [0, "0"]} for t in gap_targets
+        ],
         build_http_grpc_query(window_days, [NS], None): [
             {"metric": _metric(s, d, p), "value": [0, str(total)]} for s, d, p, total, _days in traffic
         ],
