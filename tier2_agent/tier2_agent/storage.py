@@ -65,12 +65,30 @@ CREATE TABLE IF NOT EXISTS agent_rounds (
 """
 
 
+# Cột thêm sau khi rà soát cho dashboard (DASHBOARD_DESIGN.md mục 3.B). File SQLite tạo
+# bởi bản TRƯỚC khi vá sẽ không có 2 cột này (CREATE TABLE IF NOT EXISTS không sửa bảng
+# đã có) -> `append_agent_round` sẽ lỗi "no such column". `migrate()` tự bổ sung.
+_ADDED_AGENT_ROUNDS_COLUMNS = (
+    ("reasoning_injection_flagged", "INTEGER NOT NULL DEFAULT 0"),
+    ("system_notices", "TEXT"),
+)
+
+
+def migrate(conn: sqlite3.Connection) -> None:
+    """Idempotent — chỉ THÊM cột thiếu, không đổi/xoá cột cũ."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(agent_rounds)")}
+    for name, col_type in _ADDED_AGENT_ROUNDS_COLUMNS:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE agent_rounds ADD COLUMN {name} {col_type}")
+
+
 class Storage:
     def __init__(self, db_path: str):
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL;")
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
+        migrate(self._conn)
         self._conn.commit()
 
     def close(self) -> None:

@@ -97,7 +97,10 @@ class EscalationRecord:
             self.protocol,
             str(self.port),
         )
-        return "|".join(parts)
+        # str() từng phần: cạnh potential-only FOUND_UNRESOLVED có destination_* = None
+        # (CONFIG_EVIDENCE_COLLECTOR.md mục 6) — join thẳng sẽ TypeError. Định dạng khớp
+        # tier1.schema.IdentityKey.as_string() (None -> "None").
+        return "|".join(str(p) for p in parts)
 
     @property
     def canonical_services(self) -> frozenset:

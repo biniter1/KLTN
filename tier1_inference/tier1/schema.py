@@ -97,6 +97,23 @@ class IdentityKey:
             self.destination_canonical_service,
         )
 
+    def as_string(self) -> str:
+        """Chuỗi identity_key ổn định, dạng `ns|svc|sa|dest_ns|dest_svc|protocol|port`.
+
+        PHẢI giữ đúng định dạng của `tier2_agent.escalation.EscalationRecord.identity_key`
+        (port=None -> "None", giống `str(None)`), vì Orchestrator/API Server dùng chuỗi này
+        làm khoá nối `dependency_evidence` <-> `agent_sessions.edge_identity_key` <->
+        `human_decisions.target_identity_key` (DASHBOARD_DESIGN.md mục 4)."""
+        return "|".join(str(part) for part in (
+            self.source_namespace,
+            self.source_canonical_service,
+            self.source_service_account,
+            self.destination_namespace,
+            self.destination_canonical_service,
+            self.protocol,
+            self.port,
+        ))
+
     def as_dict(self) -> dict:
         return {
             "source_namespace": self.source_namespace,

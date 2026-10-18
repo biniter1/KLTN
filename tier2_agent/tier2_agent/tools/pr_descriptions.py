@@ -85,6 +85,28 @@ def _service_source_prefix(service: str, service_dirs: Dict[str, str]) -> Option
     return root.rstrip("/")
 
 
+def _file_in_service_dir(changed_file: str, prefix: str) -> bool:
+    """PR-to-service matching (TIER2_DESIGN.md mục 0).
+
+    `prefix` là đường dẫn TUYỆT ĐỐI của bản checkout cục bộ (vd
+    `/checkout/online-boutique/src/frontend`), còn GitHub API trả `changed_files` dạng
+    TƯƠNG ĐỐI theo gốc repo (vd `src/frontend/main.go`). So `startswith` thẳng như bản
+    trước sẽ luôn False với dữ liệu GitHub thật -> mọi PR bị lọc mất. Chấp nhận khi:
+      - đường dẫn tuyệt đối nằm dưới `prefix` (giữ hành vi cũ), hoặc
+      - đường dẫn tương đối bắt đầu bằng k thành phần CUỐI của `prefix` với k >= 2
+        (vd "src/frontend"), tức khớp đúng thư mục service tính từ gốc repo. k >= 2 để
+        tránh khớp nhầm chỉ dựa vào tên thư mục lá trùng nhau ở chỗ khác trong repo.
+    """
+    if changed_file.startswith("/"):
+        return changed_file == prefix or changed_file.startswith(prefix + "/")
+    prefix_parts = [p for p in prefix.split("/") if p]
+    file_parts = [p for p in changed_file.split("/") if p]
+    for k in range(2, len(prefix_parts) + 1):
+        if len(file_parts) > k and file_parts[:k] == prefix_parts[-k:]:
+            return True
+    return False
+
+
 def make_pr_descriptions_tool(
     gatekeeper: GatekeeperClient,
     service_dirs: Dict[str, str],
@@ -106,7 +128,7 @@ def make_pr_descriptions_tool(
             prs = [
                 pr
                 for pr in prs
-                if any(f.startswith(prefix) for f in pr.get("changed_files", []))
+                if any(_file_in_service_dir(f, prefix) for f in pr.get("changed_files", []))
             ]
 
         if not prs:

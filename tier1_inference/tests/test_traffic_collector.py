@@ -53,7 +53,7 @@ def _result(value: str, **metric_overrides) -> dict:
 
 def test_build_http_grpc_query_default():
     q = build_http_grpc_query(7)
-    assert q == 'increase(istio_requests_total{reporter="destination"}[7d])'
+    assert q == 'increase(istio_requests_total{reporter="waypoint"}[7d])'
 
 
 def test_build_http_grpc_query_with_namespace_filter():

@@ -103,21 +103,84 @@ CREATE TABLE IF NOT EXISTS config_evidence (
 CREATE INDEX IF NOT EXISTS idx_config_evidence_run ON config_evidence (run_id);
 CREATE INDEX IF NOT EXISTS idx_config_evidence_snapshot ON config_evidence (snapshot_id);
 
+"""
+
+# collection_quality_log — DẠNG NGANG theo đúng DASHBOARD_DESIGN.md mục 3.A: 1 dòng /
+# (run_id, attempt_id, module). Cột riêng traffic_collector để NULL ở dòng config_collector
+# và ngược lại. 3 cột *_total/*_kept_for_trial là MỞ RỘNG so với 3.A (hạ tầng dùng chung:
+# thu 1 namespace chung rồi tách theo pair_key, cần biết tách ra bao nhiêu cho trial này).
+# Bảng dùng chung với Batch Orchestrator (orchestration/), định nghĩa ở đây vì collector
+# là module đầu tiên ghi vào nó.
+QUALITY_LOG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS collection_quality_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id      TEXT NOT NULL,
-    metric      TEXT NOT NULL,
-    value       REAL NOT NULL,
+    attempt_id  TEXT,
+    module      TEXT NOT NULL CHECK (module IN ('traffic_collector', 'config_collector')),
+
+    -- riêng traffic_collector
+    scrape_gap_detected     INTEGER,
+    scrape_gap_targets      TEXT,     -- JSON list
+    series_total            INTEGER,
+    series_kept_for_trial   INTEGER,
+
+    -- riêng config_collector — đếm theo từng bước pipeline (CONFIG_EVIDENCE_COLLECTOR.md mục 4)
+    workloads_scanned            INTEGER,
+    items_collected              INTEGER,  -- [1]
+    items_overridden             INTEGER,  -- [2]
+    items_dropped_by_funnel      TEXT,     -- [3] JSON {"EMPTY":..,"BOOLEAN":..,"BINARY":..,"SECRET_REF":..}
+    chunks_sent                  INTEGER,  -- [4]
+    llm_calls                    INTEGER,
+    llm_cache_hits               INTEGER,
+    refs_extracted               INTEGER,
+    refs_rejected_ungrounded     INTEGER,  -- [5a]
+    refs_rejected_invalid_host   INTEGER,
+    refs_dropped_loopback        INTEGER,  -- [5b]
+    refs_dropped_self            INTEGER,  -- [5f]
+    candidates_found             INTEGER,  -- FOUND_STRUCTURAL + FOUND_EMBEDDED
+    candidates_found_unresolved  INTEGER,
+    candidates_external          INTEGER,
+    evidence_total               INTEGER,
+    evidence_kept_for_trial      INTEGER,
+
     created_at  TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_collection_quality_log_run ON collection_quality_log (run_id);
+CREATE INDEX IF NOT EXISTS idx_collection_quality_log_run ON collection_quality_log (run_id, attempt_id);
 """
+
+QUALITY_LOG_COLUMNS = (
+    "scrape_gap_detected", "scrape_gap_targets", "series_total", "series_kept_for_trial",
+    "workloads_scanned", "items_collected", "items_overridden", "items_dropped_by_funnel",
+    "chunks_sent", "llm_calls", "llm_cache_hits", "refs_extracted", "refs_rejected_ungrounded",
+    "refs_rejected_invalid_host", "refs_dropped_loopback", "refs_dropped_self",
+    "candidates_found", "candidates_found_unresolved", "candidates_external",
+    "evidence_total", "evidence_kept_for_trial",
+)
+
+
+def ensure_quality_log_table(conn: sqlite3.Connection) -> None:
+    """Tạo bảng dạng ngang; nếu file SQLite cũ đang có bảng DẠNG DỌC (run_id, metric,
+    value) thì ĐỔI TÊN thành `collection_quality_log_legacy` (giữ nguyên dữ liệu, không
+    xoá) rồi tạo bảng mới."""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(collection_quality_log)")}
+    if "metric" in cols:
+        legacy_exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='collection_quality_log_legacy'"
+        ).fetchone()
+        if legacy_exists is None:
+            conn.execute("ALTER TABLE collection_quality_log RENAME TO collection_quality_log_legacy")
+        else:  # đã có legacy từ lần đổi trước -> gộp dữ liệu vào rồi bỏ bảng dọc
+            conn.execute("INSERT INTO collection_quality_log_legacy SELECT * FROM collection_quality_log")
+            conn.execute("DROP TABLE collection_quality_log")
+        conn.execute("DROP INDEX IF EXISTS idx_collection_quality_log_run")
+    conn.executescript(QUALITY_LOG_SCHEMA)
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path))
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.executescript(SCHEMA)
+    ensure_quality_log_table(conn)
     conn.commit()
     return conn
 
@@ -297,14 +360,29 @@ def _evidence_ref_to_dict(ref: EvidenceRef) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def insert_quality_log(conn: sqlite3.Connection, run_id: str, counts: dict[str, float]) -> None:
-    """mục 6 — "Số đếm tổng hợp của trial" cho `DASHBOARD_DESIGN.md` mục 3. `counts` là
-    1 dict phẳng tên-chỉ-số -> giá trị, ví dụ {"raw_items_total": 42, "funnel_kept": 30,
-    "llm_calls": 3, "cache_hits": 1, "ungrounded_total": 2, "evidence_total": 5}."""
-    ts = _now()
-    rows = [(run_id, metric, float(value), ts) for metric, value in counts.items()]
-    conn.executemany(
-        "INSERT INTO collection_quality_log (run_id, metric, value, created_at) VALUES (?,?,?,?)",
-        rows,
+def insert_quality_log(
+    conn: sqlite3.Connection,
+    run_id: str,
+    module: str,
+    values: dict,
+    attempt_id: Optional[str] = None,
+) -> None:
+    """Ghi 1 dòng dạng ngang (DASHBOARD_DESIGN.md mục 3.A). `values` chỉ được chứa tên cột
+    trong `QUALITY_LOG_COLUMNS` (sai tên -> ValueError, không âm thầm bỏ qua); dict/list
+    (vd `items_dropped_by_funnel`, `scrape_gap_targets`) tự serialize JSON."""
+    unknown = set(values) - set(QUALITY_LOG_COLUMNS)
+    if unknown:
+        raise ValueError(f"collection_quality_log không có cột: {sorted(unknown)}")
+    cols = list(values)
+    params = [
+        json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list, tuple)) else
+        (int(v) if isinstance(v, bool) else v)
+        for v in values.values()
+    ]
+    col_sql = ", ".join(["run_id", "attempt_id", "module", *cols, "created_at"])
+    placeholders = ", ".join("?" for _ in range(len(cols) + 4))
+    conn.execute(
+        f"INSERT INTO collection_quality_log ({col_sql}) VALUES ({placeholders})",
+        [run_id, attempt_id, module, *params, _now()],
     )
     conn.commit()

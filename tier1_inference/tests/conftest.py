@@ -19,6 +19,14 @@ NS = "default"
 _UNSET = object()  # sentinel: phân biệt "không truyền tham số" với "truyền None tường minh"
 
 
+@pytest.fixture(autouse=True)
+def _no_real_image_reader(monkeypatch):
+    """collect_config_evidence() mặc định đọc image thật (registry/docker, xem
+    config_collector/image_config.py) -- tắt trong test để không gọi mạng. Test nào cần
+    thì tự monkeypatch lại."""
+    monkeypatch.setenv("CONFIG_COLLECTOR_IMAGE_READER", "none")
+
+
 @pytest.fixture
 def config() -> ScoringConfig:
     """Config mặc định, dùng chung cho hầu hết test — object mới mỗi test để tránh

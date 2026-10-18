@@ -39,8 +39,12 @@ CREATE TABLE IF NOT EXISTS dependency_evidence (
     source_namespace            TEXT NOT NULL,
     source_canonical_service    TEXT NOT NULL,
     source_service_account      TEXT NOT NULL,
-    destination_namespace       TEXT NOT NULL,
-    destination_canonical_service TEXT NOT NULL,
+    -- NULL được phép: cạnh potential-only FOUND_UNRESOLVED (config trỏ tên không phân giải
+    -- được) có destination = None theo CONFIG_EVIDENCE_COLLECTOR.md mục 6 — trước đây
+    -- NOT NULL làm insert_results lỗi đúng loại cạnh hay escalate nhất (chưa lộ ra vì
+    -- experiment.py chạy stateless, không ghi SQLite).
+    destination_namespace       TEXT,
+    destination_canonical_service TEXT,
     protocol                    TEXT NOT NULL,
     port                        INTEGER,
 
@@ -73,7 +77,16 @@ CREATE TABLE IF NOT EXISTS dependency_evidence (
     manual_selector_reason   TEXT,
     dns_auto_allow           INTEGER NOT NULL DEFAULT 0,
 
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+
+    -- Orchestration layer (ORCHESTRATION_DESIGN.md mục 1-3, DASHBOARD_DESIGN.md mục 4).
+    -- NULL khi Tier 1 chạy độc lập (examples/, experiment.py) — không bắt buộc.
+    run_id            TEXT,   -- trial (vd "trial-07")
+    attempt_id        TEXT,   -- 1 lần chạy Batch Orchestrator cho trial đó (vd "trial-07.a2")
+    identity_key      TEXT,   -- IdentityKey.as_string(), khoá nối với Tier 2/human_decisions
+    tier2_session_id  TEXT,   -- agent_sessions.run_id của phiên Tier 2 xử lý cạnh này
+    tier2_status          TEXT,  -- TIER2_DESIGN.md mục 11.3
+    tier2_original_status TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_dep_evidence_identity
@@ -86,12 +99,39 @@ CREATE INDEX IF NOT EXISTS idx_dep_evidence_identity
 CREATE INDEX IF NOT EXISTS idx_dep_evidence_snapshot ON dependency_evidence (snapshot_id, created_at);
 """
 
+# Cột thêm sau (Orchestration layer) — file SQLite tạo bằng bản CŨ của module này sẽ không
+# có các cột này (CREATE TABLE IF NOT EXISTS không sửa bảng đã tồn tại), nên `connect()`
+# tự ALTER TABLE bổ sung. Chỉ THÊM cột, không bao giờ xoá/đổi cột cũ.
+_ADDED_COLUMNS = (
+    ("run_id", "TEXT"),
+    ("attempt_id", "TEXT"),
+    ("identity_key", "TEXT"),
+    ("tier2_session_id", "TEXT"),
+    ("tier2_status", "TEXT"),
+    ("tier2_original_status", "TEXT"),
+)
+
+_POST_MIGRATION_INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_dep_evidence_run ON dependency_evidence (run_id, attempt_id);
+CREATE INDEX IF NOT EXISTS idx_dep_evidence_identity_key ON dependency_evidence (identity_key);
+"""
+
+
+def migrate(conn: sqlite3.Connection) -> None:
+    """Bổ sung cột thiếu cho file SQLite tạo từ bản cũ (idempotent)."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(dependency_evidence)")}
+    for name, col_type in _ADDED_COLUMNS:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE dependency_evidence ADD COLUMN {name} {col_type}")
+    conn.executescript(_POST_MIGRATION_INDEXES)
+
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path))
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
     conn.executescript(SCHEMA)
+    migrate(conn)
     conn.commit()
     return conn
 
@@ -163,7 +203,13 @@ def insert_results(
     conn: sqlite3.Connection,
     results: list[DependencyEdgeResult],
     run_timestamp: str | None = None,
+    *,
+    run_id: str | None = None,
+    attempt_id: str | None = None,
 ) -> None:
+    """`run_id`/`attempt_id` (tuỳ chọn) — Batch Orchestrator truyền vào để gắn mọi dòng
+    với đúng trial + lần chạy (ORCHESTRATION_DESIGN.md mục 1-3). `identity_key` dạng chuỗi
+    luôn được ghi (không phụ thuộc 2 tham số này)."""
     # Format "YYYY-MM-DD HH:MM:SS" — tương thích trực tiếp với hàm datetime('now', ...)
     # của SQLite (dùng trong get_recent_flip_count để so sánh cửa sổ ngày).
     ts = run_timestamp or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
@@ -187,6 +233,7 @@ def insert_results(
             int(r.escalate_to_tier2), r.escalation_reason, r.manual_selector_reason,
             int(r.dns_auto_allow),
             ts,
+            run_id, attempt_id, k.as_string(),
         ))
 
     conn.executemany(
@@ -203,8 +250,9 @@ def insert_results(
             previous_status, unstable_classification, needs_human_review,
             escalate_to_tier2, escalation_reason, manual_selector_reason,
             dns_auto_allow,
-            created_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            created_at,
+            run_id, attempt_id, identity_key
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         rows,
     )
     conn.commit()

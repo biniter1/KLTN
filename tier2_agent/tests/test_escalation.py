@@ -57,3 +57,13 @@ def test_identity_key_stable_and_distinguishes_edges(escalation_dict_factory):
 def test_canonical_services_returns_both_ends(escalation_dict_factory):
     rec = EscalationRecord.from_dict(escalation_dict_factory())
     assert rec.canonical_services == frozenset({"frontend", "payment"})
+
+
+def test_identity_key_with_unresolved_null_destination(make_escalation):
+    esc = make_escalation(
+        dependency_status="NOT_OBSERVED", config_finding="FOUND_UNRESOLVED",
+        destination_namespace=None, destination_canonical_service=None,
+        destination_service_ref=None, protocol="UNKNOWN", port=None,
+    )
+    assert esc.should_escalate()
+    assert esc.identity_key == "default|frontend|frontend-sa|None|None|UNKNOWN|None"
