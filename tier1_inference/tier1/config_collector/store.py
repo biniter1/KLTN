@@ -123,6 +123,9 @@ CREATE TABLE IF NOT EXISTS collection_quality_log (
     scrape_gap_targets      TEXT,     -- JSON list
     series_total            INTEGER,
     series_kept_for_trial   INTEGER,
+    series_port_source      TEXT,     -- JSON {"observed_log": .., "inferred_single_port": .., "unknown": ..} (15/10)
+    series_from_logs        INTEGER,  -- cạnh TCP chỉ thấy qua access log ztunnel (VictoriaLogs)
+    log_rows_read           INTEGER,
 
     -- riêng config_collector — đếm theo từng bước pipeline (CONFIG_EVIDENCE_COLLECTOR.md mục 4)
     workloads_scanned            INTEGER,
@@ -150,6 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_collection_quality_log_run ON collection_quality_
 
 QUALITY_LOG_COLUMNS = (
     "scrape_gap_detected", "scrape_gap_targets", "series_total", "series_kept_for_trial",
+    "series_port_source", "series_from_logs", "log_rows_read",
     "workloads_scanned", "items_collected", "items_overridden", "items_dropped_by_funnel",
     "chunks_sent", "llm_calls", "llm_cache_hits", "refs_extracted", "refs_rejected_ungrounded",
     "refs_rejected_invalid_host", "refs_dropped_loopback", "refs_dropped_self",
@@ -174,6 +178,10 @@ def ensure_quality_log_table(conn: sqlite3.Connection) -> None:
             conn.execute("DROP TABLE collection_quality_log")
         conn.execute("DROP INDEX IF EXISTS idx_collection_quality_log_run")
     conn.executescript(QUALITY_LOG_SCHEMA)
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(collection_quality_log)")}
+    for name, col_type in (("series_port_source", "TEXT"), ("series_from_logs", "INTEGER"), ("log_rows_read", "INTEGER")):
+        if name not in existing:  # file SQLite tạo trước 15/10 — chỉ THÊM cột
+            conn.execute(f"ALTER TABLE collection_quality_log ADD COLUMN {name} {col_type}")
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:

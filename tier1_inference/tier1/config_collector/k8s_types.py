@@ -74,6 +74,19 @@ class VolumeMount:
 
 
 @dataclass
+class ProbeInfo:
+    """liveness/readiness/startup probe của 1 container (15/10/2026) — Tầng 1 dùng làm
+    nguồn chính cho phân loại HEALTHCHECK (TIER1_DESIGN.md mục 2.2): path health THẬT
+    của từng service, do chính đội vận hành khai trong pod spec."""
+
+    kind: str  # "liveness" | "readiness" | "startup"
+    http_path: Optional[str] = None  # httpGet.path
+    grpc_service: Optional[str] = None  # grpc.service ("" = health check toàn server)
+    is_grpc: bool = False
+    port: Optional[int] = None
+
+
+@dataclass
 class ContainerSpec:
     name: str
     container_type: str = "app"  # "app" | "init" (mục 3.2 — initContainers hay chứa script chờ dependency)
@@ -88,6 +101,7 @@ class ContainerSpec:
     env_entries: list[EnvEntry] = field(default_factory=list)  # có -> collect.py dùng cái này, bỏ qua env/env_secret_ref_count
     env_from_secret_refs: list[str] = field(default_factory=list)  # tên Secret trong envFrom.secretRef (chỉ tên, không đọc giá trị)
     image_id: Optional[str] = None  # digest image ĐANG CHẠY (containerStatuses.imageID) — None nếu chưa có pod
+    probes: list[ProbeInfo] = field(default_factory=list)  # 15/10 — xem ProbeInfo
 
     # Tương thích ngược: code cũ (regex_baseline.py) dùng `env_from_configmap_names:
     # list[str]`. Thuộc tính này KHÔNG tồn tại ở đây nữa (dùng `env_from` thay thế) —
@@ -450,6 +464,25 @@ class KubernetesReader:
             for vm in (container.volume_mounts or [])
         ]
 
+    @staticmethod
+    def _extract_probes(container) -> list[ProbeInfo]:
+        probes: list[ProbeInfo] = []
+        for kind in ("liveness", "readiness", "startup"):
+            pr = getattr(container, f"{kind}_probe", None)
+            if pr is None:
+                continue
+            http_get = getattr(pr, "http_get", None)
+            grpc = getattr(pr, "grpc", None)
+            if http_get is not None:
+                port = http_get.port if isinstance(getattr(http_get, "port", None), int) else None
+                probes.append(ProbeInfo(kind=kind, http_path=getattr(http_get, "path", None) or "/", port=port))
+            elif grpc is not None:
+                probes.append(ProbeInfo(
+                    kind=kind, is_grpc=True, grpc_service=getattr(grpc, "service", None) or "",
+                    port=getattr(grpc, "port", None),
+                ))
+        return probes
+
     def _extract_container(self, c, container_type: str, image_id: Optional[str] = None) -> ContainerSpec:
         entries = self._extract_env_entries(c)
         env_from, env_from_secrets = self._extract_env_from(c)
@@ -467,6 +500,7 @@ class KubernetesReader:
             env_entries=entries,
             env_from_secret_refs=env_from_secrets,
             image_id=image_id,
+            probes=self._extract_probes(c),
         )
 
     @staticmethod

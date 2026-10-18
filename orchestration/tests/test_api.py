@@ -51,7 +51,7 @@ def client(make_client):
 def seeded_trial(make_settings, make_deps):
     """trial-01 chạy thật qua Batch Orchestrator: 2 cạnh Tier 2 với kết quả cần người."""
     runner = ScriptedTier2Runner(by_destination={"shippingservice": "CONFLICTING_EVIDENCE",
-                                                 None: "INSUFFICIENT_BASIS"})
+                                                 "raw:adservice-nonexistent": "INSUFFICIENT_BASIS"})
     outcome = BatchOrchestrator(make_settings(), make_deps(tier2_runner=runner)).run()
     assert outcome.status == "SUCCESS"
     return outcome

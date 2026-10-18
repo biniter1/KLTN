@@ -5,8 +5,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
+
 from tier1.traffic_collector import (
     FakePrometheusClient,
+    PartialResultError,
+    VictoriaMetricsClient,
+    build_grpc_error_query,
+    make_metrics_client,
     _Accumulator,
     _extract_service_account,
     _to_traffic_series,
@@ -82,12 +88,26 @@ def test_build_error_query_filters_5xx():
     assert q.startswith("increase(istio_requests_total{")
 
 
-def test_build_scrape_gap_query():
-    assert build_scrape_gap_query() == 'up{job="istio-proxy"} == 0'
+def test_build_scrape_gap_query_targets_ztunnel_and_waypoint():
+    q = build_scrape_gap_query()
+    assert 'up{job="kubernetes-pods",app="ztunnel"} == 0' in q
+    assert 'gateway_networking_k8s_io_gateway_name!=""' in q
+
+
+def test_build_scrape_gap_query_over_whole_window():
+    """Bản cũ chỉ xét thời điểm hiện tại — gap giữa cửa sổ bị bỏ qua."""
+    q = build_scrape_gap_query("kubernetes-pods", 7)
+    assert q.count("min_over_time(up{") == 2 and "[7d]) == 0" in q
+
+
+def test_build_grpc_error_query_excludes_5xx_to_avoid_double_count():
+    q = build_grpc_error_query(7)
+    assert 'grpc_response_status!~"0|"' in q and 'response_code!~"5.."' in q
 
 
 def test_build_daily_bucket_query_uses_at_modifier():
     q, day_iso = build_daily_bucket_query(0, NOW)
+    assert day_iso == "2026-09-20"
     assert "@ " in q
     assert q.startswith("increase(istio_requests_total{")
     assert "[1d] @" in q
@@ -140,7 +160,7 @@ def test_parse_daily_result_marks_distinct_day():
     parse_window_result([_result("50")], accumulators, "count")  # xác lập series tồn tại trước
     parse_daily_result([_result("50")], accumulators, "2026-09-20", day_offset=0)
     acc = next(iter(accumulators.values()))
-    assert "2026-09-20" in acc.days_with_traffic
+    assert acc.daily == {"2026-09-20": 50.0}  # giữ cả SỐ REQUEST theo ngày
     assert acc.last_seen_days_ago == 0.0
 
 
@@ -149,7 +169,7 @@ def test_parse_daily_result_zero_value_not_counted():
     parse_window_result([_result("50")], accumulators, "count")
     parse_daily_result([_result("0")], accumulators, "2026-09-20", day_offset=0)
     acc = next(iter(accumulators.values()))
-    assert acc.days_with_traffic == set()
+    assert acc.daily == {}
 
 
 def test_parse_daily_result_ignores_series_not_in_window():
@@ -164,7 +184,7 @@ def test_to_traffic_series_maps_fields():
     acc = _Accumulator(metric=_metric(test_harness="true", injection_id="inj_1"))
     acc.count = 1200
     acc.error_count = 5
-    acc.days_with_traffic = {"d1", "d2"}
+    acc.daily = {"2026-09-19": 600.0, "2026-09-20": 600.0}
     acc.last_seen_days_ago = 0.1
     series = _to_traffic_series(acc)
 
@@ -178,6 +198,9 @@ def test_to_traffic_series_maps_fields():
     assert series.path == "/hipstershop.ProductCatalogService/ListProducts"
     assert series.count == 1200
     assert series.distinct_days == 2
+    assert series.traffic_days == ["2026-09-19", "2026-09-20"]
+    assert series.port_source == "observed"
+    assert series.destination_service_host is None
     assert series.error_count == 5
     assert series.is_injected is True
     assert series.injection_id == "inj_1"
@@ -189,7 +212,29 @@ def test_to_traffic_series_defaults_when_labels_missing():
     assert series.is_injected is False
     assert series.injection_id is None
     assert series.destination_service_ref is None
-    assert series.port == 0
+    assert series.port is None  # 15/10: không còn gán 0 khi thiếu nhãn
+    assert series.port_source == "unknown"
+
+
+def test_to_traffic_series_passthrough_cluster_is_external_without_service_ref():
+    acc = _Accumulator(metric=_metric(destination_service_name="PassthroughCluster",
+                                      destination_service_namespace="unknown",
+                                      destination_service="api.stripe.com"))
+    acc.count = 3
+    series = _to_traffic_series(acc)
+    assert series.destination_service_ref is None
+    assert "external_unregistered" in series.flags
+    assert series.destination_service_host == "api.stripe.com"
+
+
+def test_series_with_different_source_principal_are_not_merged():
+    """Khóa series có cả principal: 2 SA khác nhau -> 2 series (bản cũ gộp, lấy SA đầu)."""
+    accumulators: dict = {}
+    parse_window_result([
+        _result("10"),
+        _result("5", source_principal="spiffe://cluster.local/ns/default/sa/other"),
+    ], accumulators, "count")
+    assert len(accumulators) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +245,7 @@ def test_to_traffic_series_defaults_when_labels_missing():
 def test_collect_traffic_end_to_end():
     window_days = 7
     responses: dict[str, list[dict]] = {
-        build_scrape_gap_query(): [],
+        build_scrape_gap_query("kubernetes-pods", window_days): [],
         build_http_grpc_query(window_days): [_result("1200")],
         build_error_query(window_days): [_result("5")],
         build_tcp_query(window_days): [],
@@ -220,11 +265,12 @@ def test_collect_traffic_end_to_end():
     assert s.error_count == 5
     assert s.distinct_days == 6  # 7 ngày - 1 ngày thưa (offset 3)
     assert s.last_seen_days_ago == 0.0
+    assert len(result.daily_counts) == 1 and sum(result.daily_counts[0].values()) == 600
 
 
 def test_collect_traffic_detects_scrape_gap():
     client = FakePrometheusClient(
-        responses={build_scrape_gap_query(): [{"metric": {"instance": "x"}, "value": [1, "0"]}]},
+        responses={build_scrape_gap_query("kubernetes-pods", 1): [{"metric": {"instance": "x"}, "value": [1, "0"]}]},
         matcher=lambda promql, time: [],
     )
     result = collect_traffic(client, window_days=1, now=NOW)
@@ -235,7 +281,6 @@ def test_collect_traffic_includes_tcp_series():
     window_days = 1
     tcp_metric = _result("300", request_protocol="tcp", destination_canonical_service="redis-cart", destination_port="6379")
     responses = {
-        build_scrape_gap_query(): [],
         build_http_grpc_query(window_days): [],
         build_error_query(window_days): [],
         build_tcp_query(window_days): [tcp_metric],
@@ -243,18 +288,23 @@ def test_collect_traffic_includes_tcp_series():
     for day_offset in range(window_days):
         q, _ = build_daily_bucket_query(day_offset, NOW)
         responses[q] = []
+        tq, _ = build_daily_bucket_query(day_offset, NOW, metric="istio_tcp_connections_opened_total")
+        responses[tq] = [tcp_metric]
 
     client = FakePrometheusClient(responses=responses)
-    result = collect_traffic(client, window_days=window_days, now=NOW)
+    result = collect_traffic(client, window_days=window_days, now=NOW, check_gaps=False)
     assert len(result.series) == 1
-    assert result.series[0].protocol == "TCP"
-    assert result.series[0].destination_canonical_service == "redis-cart"
+    s = result.series[0]
+    assert s.protocol == "TCP"
+    assert s.destination_canonical_service == "redis-cart"
+    # SỬA LỖI 15/10: TCP có query theo ngày -> không còn distinct_days=0, last_seen=9999
+    assert s.distinct_days == 1
+    assert s.last_seen_days_ago == 0.0
 
 
 def test_collect_traffic_filters_zero_count_series():
     window_days = 1
     responses = {
-        build_scrape_gap_query(): [],
         build_http_grpc_query(window_days): [_result("0")],
         build_error_query(window_days): [],
         build_tcp_query(window_days): [],
@@ -264,7 +314,7 @@ def test_collect_traffic_filters_zero_count_series():
         responses[q] = []
 
     client = FakePrometheusClient(responses=responses)
-    result = collect_traffic(client, window_days=window_days, now=NOW)
+    result = collect_traffic(client, window_days=window_days, now=NOW, check_gaps=False)
     assert result.series == []
 
 
@@ -272,7 +322,6 @@ def test_collect_traffic_injected_only_filter_builds_correct_query():
     window_days = 1
     q_http = build_http_grpc_query(window_days, injected=True)
     responses = {
-        build_scrape_gap_query(): [],
         q_http: [_result("42", test_harness="true", injection_id="run_003")],
         build_error_query(window_days, injected=True): [],
         build_tcp_query(window_days, injected=True): [],
@@ -282,7 +331,47 @@ def test_collect_traffic_injected_only_filter_builds_correct_query():
         responses[q] = []
 
     client = FakePrometheusClient(responses=responses)
-    result = collect_traffic(client, window_days=window_days, injected=True, now=NOW)
+    result = collect_traffic(client, window_days=window_days, injected=True, now=NOW, check_gaps=False)
     assert len(result.series) == 1
     assert result.series[0].is_injected is True
     assert result.series[0].injection_id == "run_003"
+
+
+# ---------------------------------------------------------------------------
+# VictoriaMetrics (stack LOG_METRIC)
+# ---------------------------------------------------------------------------
+
+
+class _FakeVM(VictoriaMetricsClient):
+    def __init__(self, body, **kw):
+        super().__init__("http://vmauth:8427/select/0/prometheus", **kw)
+        self._body = body
+
+    def _get(self, promql, time):
+        return self._body
+
+
+def test_victoriametrics_partial_result_raises_by_default():
+    vm = _FakeVM({"status": "success", "isPartial": True, "data": {"result": []}})
+    with pytest.raises(PartialResultError):
+        vm.query("up")
+
+
+def test_victoriametrics_partial_result_allowed_when_configured():
+    vm = _FakeVM({"status": "success", "isPartial": True, "data": {"result": [1]}}, allow_partial=True)
+    assert vm.query("up") == [1]
+    assert vm.partial_queries == ["up"]
+
+
+def test_victoriametrics_full_result_passes():
+    vm = _FakeVM({"status": "success", "isPartial": False, "data": {"result": [_result("1")]}})
+    assert len(vm.query("up")) == 1
+
+
+def test_make_metrics_client_selects_backend(monkeypatch):
+    assert isinstance(make_metrics_client("http://x", "victoriametrics"), VictoriaMetricsClient)
+    assert not isinstance(make_metrics_client("http://x", "prometheus"), VictoriaMetricsClient)
+    monkeypatch.setenv("TRAFFIC_METRICS_BACKEND", "vm")
+    assert isinstance(make_metrics_client("http://x"), VictoriaMetricsClient)
+    with pytest.raises(ValueError):
+        make_metrics_client("http://x", "influx")

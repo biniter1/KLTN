@@ -31,23 +31,49 @@ trong môi trường không có cluster/Prometheus: `selector_validation.Kuberne
 Fake/Mock dùng cho phần còn lại được test đầy đủ) — cùng vài nhánh guard hiếm khi chạy
 (`config.py` `to_json`/`from_json`, một số early-return phòng thủ).
 
+## Nguồn dữ liệu traffic: Prometheus hoặc VictoriaMetrics + VictoriaLogs
+
+Từ 18/10/2026 module đọc traffic dùng được stack lưu trữ HA của repo **LOG_METRIC**
+(vm-vl-ha-lab: 2 vmagent active-active → vminsert → 3 vmstorage RF=2; vlagent DaemonSet gửi
+đôi vào vlogs-a/vlogs-b; một điểm đọc duy nhất là **vmauth**):
+
+| Nguồn | Client | URL ví dụ | Dùng để |
+|---|---|---|---|
+| Prometheus | `HttpPrometheusClient` | `http://localhost:9090` | bộ đếm Istio (như cũ) |
+| VictoriaMetrics | `VictoriaMetricsClient` | `http://vmauth:8427/select/0/prometheus` | cùng PromQL; **từ chối kết quả `isPartial`** (thiếu vmstorage → thiếu cạnh → policy chặn nhầm) trừ khi `allow_partial=True` |
+| VictoriaLogs | `log_collector.HttpVictoriaLogsClient` | `http://vmauth:8427` | access log ztunnel → **port thật** của cạnh + cạnh TCP không qua waypoint |
+
+Chọn backend metrics: `make_metrics_client(url, "victoriametrics")` hoặc env
+`TRAFFIC_METRICS_BACKEND=victoriametrics`. `collect_traffic(..., log_client=..., context=...)`
+gộp 2 nguồn (log thấy đúng 1 port cho cạnh → `port_source = observed_log`; cạnh chỉ thấy qua
+log → thêm series TCP mới), rồi `cluster_context` suy port còn thiếu từ Service spec. Script:
+`08_export_trial_data.py --metrics-backend victoriametrics --logs-url ...`,
+`orchestration.cli_batch --metrics-backend victoriametrics --logs-url ...`.
+
+⚠ Phần đọc VictoriaLogs **chưa kiểm chứng trên cluster thật**: tên field log ztunnel và bộ lọc
+luồng `ZTUNNEL_STREAM_FILTER` cần xác nhận trên VM (xem docstring `log_collector.py`).
+
 ## Cấu trúc code ↔ mục trong TIER1_DESIGN.md
 
 | File | Mục thiết kế | Nội dung |
 |---|---|---|
 | `tier1/schema.py` | mục 2, 3, 3b, 5, 8, 10 | Toàn bộ kiểu dữ liệu: Enum trạng thái, `IdentityKey`, `TrafficSeries`, `ConfigEvidenceRecord`, `DependencyEdgeResult` |
 | `tier1/config.py` | mục 4, 4a, 5b, 9, 12 | `ScoringConfig` — mọi trọng số/ngưỡng/danh sách, tách khỏi logic (điểm flex #1) |
-| `tier1/classification.py` | mục 2 | `classify_series()` — traffic_class theo rule, chạy ở cấp series |
-| `tier1/aggregation.py` | (chuẩn bị dữ liệu, không đặt tên riêng trong tài liệu) | Gộp series → `TrafficAggregate` theo `identity_key` |
-| `tier1/candidates.py` | mục 1 | `discover_candidates()` — C = C_observed ∪ C_potential |
-| `tier1/scoring.py` | mục 4, 4a | Công thức sigmoid, `percentile_95` (EXPECTED_MAX), `fit_weights_logistic_regression()` (chưa dùng — cần ground truth thật) |
-| `tier1/status.py` | mục 5, 5b | 5-state, hysteresis bất đối xứng, nhánh NOT_OBSERVED tách biệt khỏi sigmoid |
-| `tier1/dns_external.py` | mục 7, 8 | DNS auto-allow, phân loại scope IN_CLUSTER/EXTERNAL/UNKNOWN |
-| `tier1/selector_validation.py` | mục 3b | 4 bước validate trước khi cho enforce; `SelectorValidator` pluggable (điểm flex #3) |
-| `tier1/storage.py` | mục 10, 11 (TIER2_DESIGN.md) | SQLite WAL, bảng `dependency_evidence`, previous_status cho hysteresis |
-| `tier1/pipeline.py` | toàn bộ | `run_tier1()` — nối các bước theo đúng thứ tự |
-| `tier1/config_collector.py` | `CONFIG_EVIDENCE_COLLECTOR.md` mục 1-7 | Đọc env/envFrom/command/args + ConfigMap, giải mã 3 cấp cú pháp, đối chiếu ngược Service/Endpoints thật, canonical hóa identity → `ConfigEvidenceRecord` (C_potential, mục 1 TIER1_DESIGN.md). `K8sReader` pluggable: `FakeK8sReader` (test/demo) / `KubernetesReader` (thật, lib `kubernetes`) |
-| `tier1/traffic_collector.py` | `TRAFFIC_COLLECTION_PIPELINE.md` mục 1-6 | Query Prometheus (`increase()`, kiểm tra scrape gap qua `up{}`), gộp theo ngày để tính `distinct_days`/`last_seen_days_ago` → `TrafficSeries` (C_observed, mục 1 TIER1_DESIGN.md). `PrometheusClient` pluggable: `FakePrometheusClient` (test/demo) / `HttpPrometheusClient` (thật, HTTP API) |
+| `tier1/classification.py` | mục 2.2 | `classify_series()` — thứ tự DNS → MONITORING đã xác minh → CONTROL_PLANE → HEALTHCHECK (3 tầng, so theo segment) → BUSINESS → UNKNOWN; cờ `claimed_monitoring` |
+| `tier1/aggregation.py` | mục 2b | Gộp series → cạnh (`identity_key`): hợp `traffic_days`, hợp cờ, `is_noise_only` |
+| `tier1/candidates.py` | mục 1, 1b | Gộp theo cặp (`pair_key`, đích chưa phân giải = `("raw", host)`); `match_config_to_edges` — EXACT / PORT_ONLY / PAIR_ONLY / config dư |
+| `tier1/scoring.py` | mục 4, 4a | Sigmoid 6 đặc trưng (bỏ `protocol_diversity`), `log_volume` chia `volume_reference` cố định, config 0/1 khi đã fit, `fit_weights_logistic_regression()` |
+| `tier1/status.py` | mục 5, 5b | 5 trạng thái, hysteresis bất đối xứng, nhánh NOT_OBSERVED, nhánh cạnh chỉ toàn nhiễu (`derive_status_noise_only`) |
+| `tier1/dns_external.py` | mục 8 | Scope: PassthroughCluster/ServiceEntry → service_ref → dấu chấm → UNKNOWN (DNS quyết ở `classification.py`) |
+| `tier1/selector_validation.py` | mục 3b | 4 bước kiểm trước khi cho enforce; canonical suy theo thứ tự Istio; đọc Service/Pod 1 lần mỗi namespace |
+| `tier1/storage.py` | mục 10b | SQLite WAL, bảng `dependency_evidence`; lịch sử theo đủ 7 phần khóa, chỉ snapshot TRƯỚC; `snapshot_time` |
+| `tier1/pipeline.py` | toàn bộ | `run_tier1()` + lõi dùng chung với baseline (`prepare_snapshot`, `build_observed_result`, `build_potential_only_results`) |
+| `tier1/cluster_context.py` | mục 2.1, 2.2, 8 | Đọc cluster 1 lần: port Service, path probe, danh tính monitoring (Prometheus/vmagent), host ServiceEntry → `annotate_series` |
+| `tier1/log_collector.py` | mục 2.1b | VictoriaLogs: access log ztunnel → series TCP có port thật; `merge_log_series` |
+| `tier1/trial_io.py` | — | Đọc file trial JSON (cả bản cũ trước 15/10: port 0 → None) |
+| `tier1/ablation.py` | mục 13.4 | Ablation hysteresis 7 snapshot cắt từ 7 ngày (`infra/scripts/10_hysteresis_ablation.py`) |
+| `tier1/config_collector/` | `CONFIG_EVIDENCE_COLLECTOR.md` | Collector v2 (LLM + xác thực tất định); 15/10 đọc thêm probe (`ProbeInfo`) |
+| `tier1/traffic_collector.py` | `TRAFFIC_COLLECTION_PIPELINE.md` mục 1-6 | PromQL (`increase()`, scrape gap cả cửa sổ), 7 query theo ngày cho CẢ HTTP lẫn TCP, port None khi thiếu nhãn, `daily_counts`; client Prometheus / VictoriaMetrics |
 | `tier1/baseline.py` | mục 13.1, 13.2 | `run_baseline_b1()` (naive presence rule, baseline đối ngoại) / `run_baseline_b2()` (ngưỡng cứng cũ, ablation nội bộ) — tái dùng nguyên vẹn candidate discovery + nhánh NOT_OBSERVED của `pipeline.py`, chỉ thay quyết định cho cặp có traffic |
 | `tier1/evaluation.py` | mục 13.3 | `precision_recall_f1()`, `filter_ground_truth()` (2 lát cắt: traffic thưa, HEALTHCHECK/MONITORING), `mean_ci95()` (phân phối t), `wilcoxon_signed_rank()` (kiểm định bắt cặp) |
 | `tier1/experiment.py` | mục 13.3, `PROPOSAL.md` mục 7 | `run_experiment()` — chạy Tier 1 thật + B1 + B2 trên đúng cùng dữ liệu mỗi trial, tổng hợp `mean ± CI 95%` + Wilcoxon qua R trial độc lập |
@@ -95,20 +121,21 @@ Tài liệu thiết kế mô tả pseudocode/công thức ở mức khái niệm
 - **Ngưỡng "traffic_class mâu thuẫn/không rõ" → UNKNOWN** (mục 5): implement bằng
   `unknown_class_ratio_threshold` (mặc định 0.5) — tỷ trọng traffic không khớp rule phân
   loại nào vượt ngưỡng này thì cả edge bị đánh UNKNOWN. Xem `status.py::is_class_ambiguous`.
-- **`scope` IN_CLUSTER/EXTERNAL/UNKNOWN cho traffic** (mục 8): có `destination_service_ref`
-  → IN_CLUSTER; không có + tên có dấu chấm (giống FQDN) → EXTERNAL; còn lại → UNKNOWN.
-  Xem `dns_external.py::classify_scope`.
+- **`scope` IN_CLUSTER/EXTERNAL/UNKNOWN cho traffic** (mục 8): PassthroughCluster/
+  BlackHoleCluster hoặc host ServiceEntry → EXTERNAL; có `destination_service_ref` →
+  IN_CLUSTER; tên có dấu chấm → EXTERNAL; còn lại → UNKNOWN. Xem `dns_external.py::classify_scope`.
 - **Selector validation (mục 3b) không áp dụng cho scope=EXTERNAL** — vì mục 8 nói rõ
   EXTERNAL sinh `ServiceEntry`, không phải NetworkPolicy/podSelector — validate nhầm sẽ
   luôn fail oan (không có `destination_service_ref`). scope=UNKNOWN vẫn cho qua validate
   (fail đúng nghĩa, cần người xem).
-- **HEALTHCHECK path rule mở rộng cho gRPC** (mục 2): prefix `/health*` trong tài liệu chỉ
-  bắt path kiểu REST. gRPC health-check chuẩn (dùng trong Online Boutique và hầu hết dịch vụ
-  gRPC) có path đầy đủ dạng `/grpc.health.v1.Health/Check`, không khớp prefix nào — thêm rule
-  match theo substring `"grpc.health"` (`config.py::healthcheck_path_contains`) để bắt đúng.
-  Phát hiện ra nhờ chính unit test (`tests/test_aggregation.py`) khi dữ liệu giả lập dùng path
-  gRPC thật không được phân loại như kỳ vọng — đúng tinh thần mục 2 "heuristic ban đầu, tinh
-  chỉnh khi có dữ liệu thật".
+- **HEALTHCHECK** (mục 2.2, chốt 15/10): so theo segment cuối / nguyên văn, không theo tiền
+  tố; gRPC chỉ `grpc.health.v1.Health`. **gRPC reflection KHÔNG nằm mặc định**: harness thí
+  nghiệm sinh traffic dependency cấy bằng `grpcurl` qua reflection (`render_manifests.py`), nên
+  trong thí nghiệm reflection là traffic thật — gắn nó là healthcheck làm recall 15 trial tụt
+  0,852 → 0,789 (đo 18/10). Môi trường thật thêm vào `healthcheck_extra_paths` nếu muốn.
+- **`EXPERIMENT_CONFIG`** (phương án a): khai `*/prometheus`, `*/grafana`, `*/blackbox-exporter`
+  là monitoring đã xác minh — đúng SA của harness nhiễu monitoring. Đánh giá (`experiment.py`) và
+  Batch Orchestrator dùng config này; `DEFAULT_CONFIG` chỉ tin `istio-system/prometheus`.
 - **`previous_status` lưu là status SAU CÙNG (post-validation)** — nếu một edge từng đạt
   STRONG về điểm số nhưng bị hạ xuống `NEEDS_MANUAL_SELECTOR` do validation mục 3b, lần
   chạy sau `previous_status` đọc được là `NEEDS_MANUAL_SELECTOR`, không phải `STRONG` —

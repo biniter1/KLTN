@@ -288,3 +288,18 @@ def test_secret_and_projected_volumes():
     secrets = [it for it in items if it.source_kind == "secret_ref"]
     assert len(secrets) == 2  # tls-cert + api-key, không đọc giá trị
     assert all(it.value == "<redacted>" for it in secrets)
+
+
+def test_probes_are_read_for_healthcheck_classification():
+    """15/10: Collector đọc liveness/readiness/startup probe — Tầng 1 dùng làm tầng 1 của
+    HEALTHCHECK (path health THẬT của từng service)."""
+    c = k8s.V1Container(
+        name="server", image="busybox:1.36",
+        readiness_probe=k8s.V1Probe(http_get=k8s.V1HTTPGetAction(path="/_healthz", port=8080)),
+        liveness_probe=k8s.V1Probe(grpc=k8s.V1GRPCAction(port=7070, service="")),
+    )
+    reader = _reader(deployments=[_deployment("frontend", 1, containers=[c])])
+    pod = next(p for p in reader.list_pods(NS) if p.name == "frontend")
+    probes = {pr.kind: pr for pr in pod.containers[0].probes}
+    assert probes["readiness"].http_path == "/_healthz" and probes["readiness"].port == 8080
+    assert probes["liveness"].is_grpc and probes["liveness"].port == 7070

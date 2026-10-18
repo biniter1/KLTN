@@ -12,10 +12,20 @@ cho mỗi edge, không UPDATE đè lên dòng cũ. Điều này cho:
     của cùng identity_key.
   - unstable_classification (mục 5b): đếm số lần đổi status trong cửa sổ N ngày gần nhất
     bằng cách quét lịch sử các dòng trước đó — không cần bảng phụ.
+
+Sửa 15/10/2026 (TIER1_DESIGN.md mục 10b):
+  - tra lịch sử theo ĐỦ 7 phần khóa cạnh (bản cũ thiếu source_service_account -> 2 cạnh
+    chỉ khác SA dùng chung lịch sử);
+  - chỉ lấy dòng của snapshot TRƯỚC snapshot hiện tại (bản cũ không loại dòng cùng
+    snapshot_id -> chạy lại 1 snapshot đọc nhầm kết quả của chính nó);
+  - cột `snapshot_time` (thời điểm của DỮ LIỆU) — sắp lịch sử và đếm số lần đổi trạng thái
+    theo cột này, không theo `created_at` (giờ chạy code);
+  - cột mới: port_source, traffic_days, flags (JSON), config_match_level, auto_allow_reason.
 """
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -86,7 +96,15 @@ CREATE TABLE IF NOT EXISTS dependency_evidence (
     identity_key      TEXT,   -- IdentityKey.as_string(), khoá nối với Tier 2/human_decisions
     tier2_session_id  TEXT,   -- agent_sessions.run_id của phiên Tier 2 xử lý cạnh này
     tier2_status          TEXT,  -- TIER2_DESIGN.md mục 11.3
-    tier2_original_status TEXT
+    tier2_original_status TEXT,
+
+    -- 15/10/2026 (TIER1_DESIGN.md mục 10b)
+    snapshot_time       TEXT,   -- thời điểm của dữ liệu, "YYYY-MM-DD HH:MM:SS" UTC
+    port_source         TEXT,
+    traffic_days        TEXT,   -- JSON list ngày có traffic
+    flags               TEXT,   -- JSON list cờ
+    config_match_level  TEXT,   -- EXACT | PORT_ONLY | PAIR_ONLY
+    auto_allow_reason   TEXT    -- VERIFIED_MONITORING | NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_dep_evidence_identity
@@ -109,11 +127,24 @@ _ADDED_COLUMNS = (
     ("tier2_session_id", "TEXT"),
     ("tier2_status", "TEXT"),
     ("tier2_original_status", "TEXT"),
+    ("snapshot_time", "TEXT"),
+    ("port_source", "TEXT"),
+    ("traffic_days", "TEXT"),
+    ("flags", "TEXT"),
+    ("config_match_level", "TEXT"),
+    ("auto_allow_reason", "TEXT"),
 )
 
 _POST_MIGRATION_INDEXES = """
 CREATE INDEX IF NOT EXISTS idx_dep_evidence_run ON dependency_evidence (run_id, attempt_id);
 CREATE INDEX IF NOT EXISTS idx_dep_evidence_identity_key ON dependency_evidence (identity_key);
+"""
+
+_IDENTITY_SA_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_dep_evidence_identity_sa ON dependency_evidence (
+    source_namespace, source_canonical_service, source_service_account,
+    destination_namespace, destination_canonical_service, protocol, port, snapshot_time
+);
 """
 
 
@@ -124,6 +155,9 @@ def migrate(conn: sqlite3.Connection) -> None:
         if name not in existing:
             conn.execute(f"ALTER TABLE dependency_evidence ADD COLUMN {name} {col_type}")
     conn.executescript(_POST_MIGRATION_INDEXES)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(dependency_evidence)")}
+    if "source_service_account" in cols:  # bảng rất cũ (test migrate) có thể thiếu cột này
+        conn.executescript(_IDENTITY_SA_INDEX)
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
@@ -137,10 +171,12 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 
 
 def _identity_where_clause() -> str:
+    # `IS ?` cho cột có thể NULL (đích None của cạnh chỉ có config, port None) — `= NULL`
+    # trong SQL luôn sai.
     return (
-        "source_namespace=? AND source_canonical_service=? "
-        "AND destination_namespace=? AND destination_canonical_service=? "
-        "AND protocol=? AND (port IS ? OR port=?)"
+        "source_namespace=? AND source_canonical_service=? AND source_service_account=? "
+        "AND destination_namespace IS ? AND destination_canonical_service IS ? "
+        "AND protocol=? AND port IS ?"
     )
 
 
@@ -148,29 +184,55 @@ def _identity_params(key: IdentityKey) -> tuple:
     return (
         key.source_namespace,
         key.source_canonical_service,
+        key.source_service_account,
         key.destination_namespace,
         key.destination_canonical_service,
         key.protocol,
         key.port,
-        key.port,
     )
+
+
+def normalize_time(value: str | None) -> str | None:
+    """ISO 8601 bất kỳ -> "YYYY-MM-DD HH:MM:SS" UTC (so chuỗi được với datetime() SQLite)."""
+    if not value:
+        return None
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+_ROW_TIME = "COALESCE(snapshot_time, created_at)"
 
 
 def get_previous_status_map(
     conn: sqlite3.Connection,
     candidate_keys: list[IdentityKey],
+    current_snapshot_id: str | None = None,
+    before_snapshot_time: str | None = None,
 ) -> dict[IdentityKey, DependencyStatus]:
-    """Với mỗi identity_key, lấy dependency_status của dòng GẦN NHẤT đã lưu trước đó
-    (nếu có) — dùng làm previous_status cho hysteresis (mục 5b). Không giả định các
-    edge đã tồn tại; edge mới hoàn toàn -> previous_status=None (mặc định là "không
-    phải STRONG", đúng nghĩa "chưa từng được thăng hạng")."""
+    """Với mỗi identity_key, lấy dependency_status của dòng GẦN NHẤT thuộc snapshot TRƯỚC
+    snapshot hiện tại — previous_status cho hysteresis (mục 5b). Loại mọi dòng cùng
+    `current_snapshot_id` và (nếu có `before_snapshot_time`) mọi dòng có thời điểm dữ liệu
+    không sớm hơn. Cạnh mới -> không có trong kết quả (= "không phải STRONG")."""
+    clauses = [_identity_where_clause()]
+    extra: list = []
+    if current_snapshot_id is not None:
+        clauses.append("snapshot_id != ?")
+        extra.append(current_snapshot_id)
+    before = normalize_time(before_snapshot_time)
+    if before is not None:
+        clauses.append(f"{_ROW_TIME} < ?")
+        extra.append(before)
+    where = " AND ".join(clauses)
+
     result: dict[IdentityKey, DependencyStatus] = {}
     for key in candidate_keys:
         row = conn.execute(
             f"""SELECT dependency_status FROM dependency_evidence
-                WHERE {_identity_where_clause()}
-                ORDER BY created_at DESC, id DESC LIMIT 1""",
-            _identity_params(key),
+                WHERE {where}
+                ORDER BY {_ROW_TIME} DESC, id DESC LIMIT 1""",
+            _identity_params(key) + tuple(extra),
         ).fetchone()
         if row is not None:
             result[key] = DependencyStatus(row[0])
@@ -181,15 +243,23 @@ def get_recent_flip_count(
     conn: sqlite3.Connection,
     key: IdentityKey,
     window_days: int,
+    until_snapshot_time: str | None = None,
 ) -> int:
     """Đếm số lần dependency_status ĐỔI giữa các dòng liên tiếp của cùng identity_key
-    trong `window_days` gần nhất — dùng cho unstable_classification (mục 5b)."""
+    trong `window_days` ngày tính tới `until_snapshot_time` (thời điểm dữ liệu, mặc định
+    là bây giờ) — unstable_classification (mục 5b)."""
+    until = normalize_time(until_snapshot_time)
+    if until is None:
+        window_sql = f"{_ROW_TIME} >= datetime('now', ?)"
+        params = _identity_params(key) + (f"-{window_days} days",)
+    else:
+        window_sql = f"{_ROW_TIME} >= datetime(?, ?) AND {_ROW_TIME} < ?"
+        params = _identity_params(key) + (until, f"-{window_days} days", until)
     rows = conn.execute(
-        f"""SELECT dependency_status, created_at FROM dependency_evidence
-            WHERE {_identity_where_clause()}
-              AND created_at >= datetime('now', ?)
-            ORDER BY created_at ASC, id ASC""",
-        _identity_params(key) + (f"-{window_days} days",),
+        f"""SELECT dependency_status FROM dependency_evidence
+            WHERE {_identity_where_clause()} AND {window_sql}
+            ORDER BY {_ROW_TIME} ASC, id ASC""",
+        params,
     ).fetchall()
 
     flips = 0
@@ -234,6 +304,9 @@ def insert_results(
             int(r.dns_auto_allow),
             ts,
             run_id, attempt_id, k.as_string(),
+            normalize_time(r.snapshot_time), r.port_source,
+            json.dumps(list(r.traffic_days)), json.dumps(list(r.flags)),
+            r.config_match_level, r.auto_allow_reason,
         ))
 
     conn.executemany(
@@ -251,8 +324,9 @@ def insert_results(
             escalate_to_tier2, escalation_reason, manual_selector_reason,
             dns_auto_allow,
             created_at,
-            run_id, attempt_id, identity_key
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            run_id, attempt_id, identity_key,
+            snapshot_time, port_source, traffic_days, flags, config_match_level, auto_allow_reason
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         rows,
     )
     conn.commit()

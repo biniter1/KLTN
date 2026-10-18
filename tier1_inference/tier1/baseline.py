@@ -37,12 +37,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from .aggregation import TrafficAggregate, aggregate_series
-from .candidates import Candidate, discover_candidates
-from .classification import classify_all
+from .aggregation import TrafficAggregate
+from .candidates import match_config_to_edges
 from .config import DEFAULT_CONFIG, ScoringConfig
-from .dns_external import classify_scope, is_dns_edge
-from .pipeline import _build_dns_result, _build_potential_only_result, _pick_config_evidence
+from .pipeline import _build_dns_result, build_observed_result, build_potential_only_results, prepare_snapshot
 from .schema import (
     ConfigEvidenceRecord,
     DependencyEdgeResult,
@@ -89,56 +87,25 @@ def _run_component_variant(
     snapshot_id: str,
     config: ScoringConfig = DEFAULT_CONFIG,
 ) -> list[DependencyEdgeResult]:
-    # 1-3) Giống hệt run_tier1 (mục 2, 7) — KHÔNG phải phần đang được so sánh ở mục 13.
-    classify_all(traffic_series, config)
-    dns_series = [s for s in traffic_series if is_dns_edge(s.identity_key(), config)]
-    normal_series = [s for s in traffic_series if not is_dns_edge(s.identity_key(), config)]
-    traffic_aggregates = aggregate_series(normal_series)
-    dns_aggregates = aggregate_series(dns_series)
-
-    # 4) discover_candidates — mục 1, giữ nguyên 100%
-    candidates = discover_candidates(traffic_aggregates, config_evidence)
-
+    # Stage 1-3 + khớp config: GIỐNG HỆT run_tier1 (mục 13: "phần không đổi").
+    prepared = prepare_snapshot(traffic_series, config_evidence, config)
     results: list[DependencyEdgeResult] = []
 
-    for cand in candidates.values():
+    for cand in prepared.candidates.values():
         if cand.is_observed:
+            match = match_config_to_edges(cand)
             for identity_key, agg in cand.observed.items():
-                ev = _pick_config_evidence(identity_key, cand.config_evidence)
-                config_finding = ev.config_finding if ev else None
-
-                decision, score = _decide_observed(variant, agg, config_finding)
-
-                results.append(
-                    DependencyEdgeResult(
-                        identity_key=identity_key,
-                        destination_service_ref=agg.destination_service_ref,
-                        scope=classify_scope(identity_key, agg.destination_service_ref),
-                        traffic_class=agg.dominant_traffic_class(),
-                        count=agg.count,
-                        distinct_days=agg.distinct_days,
-                        error_ratio=agg.error_ratio,
-                        unstable=agg.error_ratio > config.error_ratio_threshold,
-                        config_finding=config_finding,
-                        score=score,
-                        dependency_status=decision.status,
-                        snapshot_id=snapshot_id,
-                        workload_revision=agg.workload_revision,
-                        # B1/B2 không dùng hysteresis (mục 13.1/13.2: "bỏ qua hoàn toàn... hysteresis")
-                        previous_status=None,
-                        unstable_classification=False,
-                        needs_human_review=decision.needs_human_review,
-                        escalate_to_tier2=decision.escalate_to_tier2,
-                        escalation_reason=decision.escalation_reason,
-                        # B1/B2 không có khái niệm NEEDS_MANUAL_SELECTOR (mục 3b không chạy ở đây)
-                    )
-                )
-
+                m = match.per_edge[identity_key]
+                finding = m.evidence.config_finding if m.evidence else None
+                decision, score = _decide_observed(variant, agg, finding)
+                # B1/B2 không có hysteresis, không có NEEDS_MANUAL_SELECTOR, không có nhánh
+                # nhiễu (B1 cố ý không phân biệt traffic_class — mục 13.1).
+                results.append(build_observed_result(identity_key, agg, m, decision, score, snapshot_id, config))
+            results.extend(build_potential_only_results(match.leftovers, snapshot_id))
         elif cand.is_potential_only:
-            # Y HỆT Tier 1 thật — "phần không đổi không làm nhiễu phép so sánh" (mục 13.1/13.2)
-            results.append(_build_potential_only_result(cand, snapshot_id))
+            results.extend(build_potential_only_results(cand.config_evidence, snapshot_id))
 
-    for agg in dns_aggregates.values():
+    for agg in prepared.dns_aggregates.values():
         dns_result = _build_dns_result(agg, config)
         dns_result.snapshot_id = snapshot_id
         results.append(dns_result)

@@ -86,17 +86,19 @@ def test_traffic_and_config_split_by_pair_key_excludes_other_trials_edges(make_s
 
 def test_config_only_unresolved_edge_reaches_tier1_and_is_escalated(make_settings, make_deps):
     """FOUND_UNRESOLVED có destination=None — phải khớp lại qua raw_host '<dest>-nonexistent'
-    (trial_scope.py), nếu không kịch bản CONFIG_ONLY_UNRESOLVED biến mất khỏi mọi trial."""
+    (trial_scope.py), nếu không kịch bản CONFIG_ONLY_UNRESOLVED biến mất khỏi mọi trial.
+    Từ 15/10 Tầng 1 ghi đích dạng "raw:<host>" (mỗi host lạ 1 dòng riêng — TIER1_DESIGN.md mục 1b)."""
     runner = ScriptedTier2Runner()
     settings = make_settings()
     BatchOrchestrator(settings, make_deps(tier2_runner=runner)).run()
     unresolved = [r for r in _evidence(settings.db_path, "trial-01.a1") if r["config_finding"] == "FOUND_UNRESOLVED"]
     assert len(unresolved) == 1
     assert unresolved[0]["source_canonical_service"] == "paymentservice"
-    assert unresolved[0]["destination_canonical_service"] is None
+    assert unresolved[0]["destination_canonical_service"] == "raw:adservice-nonexistent"
+    assert unresolved[0]["destination_namespace"] is None
     assert unresolved[0]["escalate_to_tier2"] == 1
     assert unresolved[0]["tier2_status"] == "CONFIDENT"
-    assert any(d["destination_canonical_service"] is None for d, _sid in runner.calls)
+    assert any(d["destination_canonical_service"] == "raw:adservice-nonexistent" for d, _sid in runner.calls)
 
 
 def test_quality_log_has_one_wide_row_per_module_with_trial_split_counts(make_settings, make_deps):

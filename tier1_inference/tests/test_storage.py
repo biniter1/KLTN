@@ -187,6 +187,10 @@ def test_unresolved_potential_only_edge_with_null_destination_can_be_stored(tmp_
     assert results[0].escalate_to_tier2
     conn = storage.connect(tmp_path / "t.sqlite")
     storage.insert_results(conn, results, run_id="r", attempt_id="r.a1")
-    row = conn.execute("SELECT destination_canonical_service, identity_key FROM dependency_evidence").fetchone()
+    row = conn.execute(
+        "SELECT destination_namespace, destination_canonical_service, identity_key FROM dependency_evidence"
+    ).fetchone()
+    # 15/10: đích chưa phân giải -> canonical "raw:<host>" (mỗi host 1 dòng riêng), ns None
     assert row[0] is None
-    assert row[1].endswith("|None|None|UNKNOWN|None")
+    assert row[1] == "raw:cartservice-nonexistent"
+    assert row[2].endswith("|None|raw:cartservice-nonexistent|UNKNOWN|None")

@@ -29,6 +29,7 @@ class StatusDecision:
     escalate_to_tier2: bool
     escalation_reason: Optional[str]
     needs_human_review: bool = False
+    auto_allow_reason: Optional[str] = None
 
 
 # Escalation reason lookup — tham chiếu TIER2_DESIGN.md mục 8.2 (bảng escalation_reason)
@@ -124,6 +125,36 @@ def derive_status_observed(
         status=DependencyStatus.OBSERVED_WEAK,
         escalate_to_tier2=True,
         escalation_reason=ESCALATION_REASON[DependencyStatus.OBSERVED_WEAK],
+    )
+
+
+def derive_status_noise_only(agg: TrafficAggregate) -> StatusDecision:
+    """Cạnh chỉ toàn nhiễu (mục 5 nhánh nhiễu, chốt 15/10): có traffic nhưng không có
+    request BUSINESS nào. Traffic nhiễu VẪN là traffic thật cần được cho phép (chặn
+    Prometheus = mất giám sát, chặn healthcheck = service bị coi là chết), nhưng gọi
+    Tier 2 thì tốn chi phí AI chỉ để kết luận lại "đây là healthcheck":
+
+      - toàn MONITORING đã xác minh  -> Planner tự mở (auto_allow_reason=VERIFIED_MONITORING)
+      - còn lại (healthcheck, control plane, monitoring chưa xác minh) -> người duyệt
+
+    Trạng thái giữ OBSERVED_WEAK (không tính là "tự kết luận" khi đánh giá), không escalate."""
+    only_verified_monitoring = (
+        agg.class_counts.get(TrafficClass.MONITORING, 0) == agg.count
+        and "claimed_monitoring" not in agg.flags
+    )
+    if only_verified_monitoring:
+        return StatusDecision(
+            status=DependencyStatus.OBSERVED_WEAK,
+            escalate_to_tier2=False,
+            escalation_reason=None,
+            needs_human_review=False,
+            auto_allow_reason="VERIFIED_MONITORING",
+        )
+    return StatusDecision(
+        status=DependencyStatus.OBSERVED_WEAK,
+        escalate_to_tier2=False,
+        escalation_reason=None,
+        needs_human_review=True,
     )
 
 

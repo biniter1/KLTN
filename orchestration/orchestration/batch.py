@@ -61,6 +61,9 @@ class BatchSettings:
     fail_on_scrape_gap: bool = False   # mặc định: ghi cờ + cảnh báo (như 08_export), không hủy
     stateful_tier1: bool = False       # hysteresis theo lịch sử CHÍNH trial này (bộ demo)
     prompt_version: Optional[str] = None
+    # tier1.config.ScoringConfig — None = EXPERIMENT_CONFIG (khai danh tính harness monitoring,
+    # phương án a). Môi trường thật truyền DEFAULT_CONFIG hoặc config riêng.
+    scoring_config: object = None
 
 
 @dataclass
@@ -72,6 +75,10 @@ class BatchDeps:
     image_reader: object = None
     tier2_runner: Optional[Tier2Runner] = None  # None -> bỏ qua Tier 2 (ghi rõ skipped)
     now: Callable[[], datetime] = field(default=lambda: datetime.now(timezone.utc))
+    # tier1.log_collector.LogsClient (VictoriaLogs) — None -> chỉ dùng metrics
+    log_client: object = None
+    # "ns/tên-service" của Prometheus/vmagent để tự phát hiện danh tính monitoring (TIER1_DESIGN.md mục 2.2)
+    monitoring_services: tuple = ("istio-system/prometheus",)
 
 
 @dataclass
@@ -178,16 +185,26 @@ class BatchOrchestrator:
         from tier1.config_collector import store as collector_store
         from tier1.traffic_collector import collect_traffic
 
+        from tier1.cluster_context import build_cluster_context
+
         with log.step("traffic_collector") as ctx:
+            # Cluster context (đọc 1 lần, chỉ đọc): suy port từ Service, path probe, danh tính
+            # monitoring, host ServiceEntry — TIER1_DESIGN.md mục 2.1/2.2/8.
+            context = build_cluster_context(self.d.k8s_reader, self.d.monitoring_services)
             collection = collect_traffic(self.d.prometheus_client, window_days=self.s.window_days,
-                                         namespaces=[self.s.namespace], injected=None, now=self.d.now())
+                                         namespaces=[self.s.namespace], injected=None, now=self.d.now(),
+                                         context=context, log_client=self.d.log_client)
             kept = scope.filter_series(collection.series)
             gap = collection.scrape_gap
+            port_sources = Counter(s.port_source for s in kept)
             collector_store.insert_quality_log(conn, self.s.run_id, "traffic_collector", {
                 "scrape_gap_detected": gap.has_gap,
                 "scrape_gap_targets": list(gap.affected_targets),
                 "series_total": len(collection.series),
                 "series_kept_for_trial": len(kept),
+                "series_port_source": dict(port_sources),
+                "series_from_logs": collection.log_series_added,
+                "log_rows_read": collection.log_rows_read,
             }, attempt_id=attempt_id)
             ctx.detail.update(series_total=len(collection.series), series_kept=len(kept),
                               scrape_gap_detected=gap.has_gap)
@@ -221,12 +238,16 @@ class BatchOrchestrator:
 
     def _run_tier1(self, conn, log, series, records, attempt_id: str, outcome: TrialOutcome) -> list:
         from tier1 import storage as tier1_storage
+        from tier1.config import EXPERIMENT_CONFIG
         from tier1.pipeline import run_tier1
 
         with log.step("tier1") as ctx:
             history_conn = self._lineage_history_conn(conn) if self.s.stateful_tier1 else None
             try:
-                results = run_tier1(series, records, snapshot_id=attempt_id, conn=history_conn)
+                # snapshot_id = attempt_id: lịch sử loại đúng dòng của CHÍNH lần chạy này
+                # (TIER1_DESIGN.md mục 10b); mỗi attempt là 1 snapshot riêng.
+                results = run_tier1(series, records, snapshot_id=attempt_id, conn=history_conn,
+                                    config=self.s.scoring_config or EXPERIMENT_CONFIG)
             finally:
                 if history_conn is not None:
                     history_conn.close()
