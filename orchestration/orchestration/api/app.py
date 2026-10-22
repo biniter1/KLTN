@@ -29,7 +29,7 @@ from .. import _paths  # noqa: F401
 from ..db import REASON_CODES, connect, connect_readonly, ensure_schema
 from ..wiring import ONLINE_BOUTIQUE_SERVICES
 from . import readers
-from .decisions_store import insert_decision
+from .decisions_store import insert_decision, migrate_decision_checks
 from .gatekeeper import Gatekeeper, GatekeeperRejection, PRSource, SlidingWindowRateLimiter
 from .review import REASONS, DecisionValidationError, validate_decision
 
@@ -64,6 +64,7 @@ class DecisionIn(BaseModel):
 def create_app(settings: ApiSettings) -> FastAPI:
     boot = connect(settings.db_path)
     ensure_schema(boot)  # chỉ DDL — xem db.py
+    migrate_decision_checks(boot)  # DB cũ: cập nhật CHECK reason_code/action, giữ nguyên dữ liệu
     boot.close()
 
     gatekeeper = Gatekeeper(settings.pr_source, settings.allowed_services,

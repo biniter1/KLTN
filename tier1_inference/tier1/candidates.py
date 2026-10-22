@@ -18,6 +18,12 @@ Sau khi gặp nhau, `match_config_to_edges` so từng bản ghi config với t�
                   sentinel 26379 khi traffic chỉ thấy 6379)
 
 Mỗi cạnh chọn 1 config: mức khớp cao nhất -> finding sạch -> item_id nhỏ nhất (tất định).
+
+Cờ `config_port_differs` (chốt 22/10/2026): cạnh đã có port, config của cùng cặp có port đã
+biết nhưng KHÔNG port nào trùng. Nếu port của cạnh là port THẤY ĐƯỢC (observed/observed_log)
+thì config lệch chỉ là config dư (đi nhánh NOT_OBSERVED như trên); nếu port của cạnh là port
+SUY RA từ Service thì đây là mâu thuẫn -> cửa ra (Planner/hàng đợi review) chặn với
+PORT_CONFLICT. Tầng 1 chỉ ghi cờ, không đổi điểm/trạng thái.
 """
 
 from __future__ import annotations
@@ -143,6 +149,12 @@ def match_config_to_edges(cand: Candidate) -> MatchResult:
                 and ev.source_service_account != k.source_service_account):
             flags.append("sa_mismatch")
         per_edge[k] = EdgeConfigMatch(evidence=ev, level=level, flags=flags)
+
+    config_ports = {ev.port for ev in cand.config_evidence if ev.port is not None}
+    if config_ports:
+        for k in edges:
+            if k.port is not None and k.port not in config_ports:
+                per_edge[k].flags.append("config_port_differs")
 
     return MatchResult(per_edge=per_edge, leftovers=leftovers)
 

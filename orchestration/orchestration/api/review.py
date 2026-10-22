@@ -12,6 +12,7 @@ Mỗi `reason_code` có:
 from __future__ import annotations
 
 import ipaddress
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
@@ -55,9 +56,15 @@ REASONS: dict[str, ReasonSpec] = {
         "Continuity Monitor mục 2.2", "high", False),
     "STALE_PERMISSION": ReasonSpec("edge", frozenset({"REVOKE", "APPROVE"}),
                                    "Continuity Monitor mục 2.8", "low", False),
+    # Cổng port ở cửa ra (chốt 22/10/2026): Tầng 1 không chặn cạnh thiếu/mâu thuẫn port —
+    # nó vẫn được chấm điểm; chỉ bước sinh YAML cần port nên chặn ở đây, cạnh khác đi tiếp.
+    "NEEDS_MANUAL_PORT": ReasonSpec("edge", frozenset({"SUBMIT_PORT", "REJECT"}),
+                                    "Migration Planner (cạnh kết luận chưa xác định được port)", "medium", True),
+    "PORT_CONFLICT": ReasonSpec("edge", frozenset({"SUBMIT_PORT", "REJECT"}),
+                                "Migration Planner (log thấy nhiều port / port suy ra lệch config)", "medium", True),
 }
 
-assert set(REASONS) == set(REASON_CODES), "REASONS phải phủ đúng 11 reason_code của db.py"
+assert set(REASONS) == set(REASON_CODES), "REASONS phải phủ đúng mọi reason_code của db.py"
 assert all(spec.actions <= set(ACTIONS) for spec in REASONS.values())
 
 URGENCY_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -150,6 +157,10 @@ def validate_payload(action: str, payload: dict, *, now: Optional[datetime] = No
             raise DecisionValidationError("payload.justification quá ngắn — ghi đè phải kèm lý do cụ thể (>= 10 ký tự)")
     elif action == "ATTRIBUTE":
         _require_str(payload, "owner", "payload")
+    elif action == "SUBMIT_PORT":
+        port = payload.get("port")
+        if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+            raise DecisionValidationError("SUBMIT_PORT cần payload.port là số nguyên 1..65535 (targetPort của pod đích)")
 
     if reason_code == "TOOL_ADMIN_ATTENTION":
         _require_str(payload, "note", "payload")
@@ -188,7 +199,42 @@ def edge_review_reasons(row: dict, sensitive_namespaces: frozenset) -> list[str]
     sensitive = row.get("scope") == "EXTERNAL" or row.get("destination_namespace") in sensitive_namespaces
     if concluded_strong and sensitive:
         reasons.append("HIGH_BLAST_RADIUS")
+    port_reason = edge_port_reason(row)
+    if port_reason and (concluded_strong or status == "NEEDS_MANUAL_SELECTOR" or row.get("auto_allow_reason")):
+        reasons.append(port_reason)
     return reasons
+
+
+_INFERRED_PORT_SOURCES = ("inferred_single_port", "inferred_protocol_match")
+
+
+def _row_flags(row: dict) -> set:
+    raw = row.get("flags")
+    if isinstance(raw, (list, tuple, set)):
+        return set(raw)
+    if isinstance(raw, str) and raw:
+        try:
+            return set(json.loads(raw))
+        except ValueError:
+            return set()
+    return set()
+
+
+def edge_port_reason(row: dict) -> Optional[str]:
+    """Cổng port ở cửa ra (chốt 22/10/2026). Chỉ xét cạnh SẮP được sinh rule (caller lọc).
+      - PORT_CONFLICT: log thấy nhiều port (`multiple_ports_seen`), hoặc port SUY RA từ Service
+        lệch với port trong config (`config_port_differs`). Port THẤY ĐƯỢC lệch config không
+        tính — config lệch đó đã đi nhánh NOT_OBSERVED riêng (config dư).
+      - NEEDS_MANUAL_PORT: không xác định được port.
+    `inferred_protocol_match` không mâu thuẫn thì cho qua (port_source vẫn hiện trên dashboard)."""
+    flags = _row_flags(row)
+    if "multiple_ports_seen" in flags:
+        return "PORT_CONFLICT"
+    if "config_port_differs" in flags and row.get("port_source") in _INFERRED_PORT_SOURCES:
+        return "PORT_CONFLICT"
+    if row.get("port") is None:
+        return "NEEDS_MANUAL_PORT"
+    return None
 
 
 def max_consecutive_errors(trace_rows: list[dict]) -> dict:
