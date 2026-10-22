@@ -57,7 +57,7 @@ Exit code: `0` = SUCCESS, `1` = FAILED (lý do ghi trong `pipeline_run_log`). C�
 | ORCH mục 4 — hàng đợi không chặn cạnh khác | `api/readers.py::review_queue` (suy ra lúc query, không có tiến trình chờ) |
 | ORCH mục 6 — các route | `api/app.py` |
 | ORCH mục 7 — gatekeeper Tier 2 | `api/gatekeeper.py` |
-| DASH mục 2 — 11 reason_code + action + payload | `api/review.py`, `api/decisions_store.py` |
+| DASH mục 2 — 11 reason_code (+ NEEDS_MANUAL_PORT, PORT_CONFLICT từ 22/10) + action + payload | `api/review.py`, `api/decisions_store.py` |
 | DASH mục 3.A — `collection_quality_log` | `tier1/config_collector/store.py` (bảng), `batch.py` (ghi) |
 | DASH mục 3.B — 2 cột `agent_rounds` | đã có sẵn trong snapshot, bổ sung migration (`tier2_agent/storage.py::migrate`) |
 | DASH mục 4 — khoá liên kết | `identity_key`, `run_id`/`attempt_id`, `tier2_session_id` (xem dưới) |

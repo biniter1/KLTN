@@ -178,6 +178,10 @@ def build_observed_result(
     flags = set(agg.flags) | set(match.flags)
     if agg.is_noise_only:
         flags.add("noise_only")
+    if identity_key.port is None:
+        # Cảnh báo sớm (chốt 22/10/2026): Tầng 1 vẫn chấm điểm bình thường — "có quan hệ
+        # không" độc lập với "mở cửa nào"; port chỉ bắt buộc ở cửa ra (NEEDS_MANUAL_PORT).
+        flags.add("port_unresolved")
     return DependencyEdgeResult(
         identity_key=identity_key,
         destination_service_ref=agg.destination_service_ref,

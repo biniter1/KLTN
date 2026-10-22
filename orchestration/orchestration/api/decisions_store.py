@@ -33,3 +33,38 @@ def insert_decision(conn: sqlite3.Connection, *, reason_code: str, target_ref: d
     conn.execute(f"INSERT INTO human_decisions ({cols}) VALUES ({', '.join('?' for _ in row)})",
                  tuple(row.values()))
     return row
+
+
+def migrate_decision_checks(conn: sqlite3.Connection) -> bool:
+    """SQLite không ALTER được CHECK: file DB tạo trước khi thêm reason_code/action mới
+    (vd NEEDS_MANUAL_PORT, SUBMIT_PORT — 22/10/2026) giữ CHECK cũ và từ chối quyết định mới.
+    Dựng lại bảng với CHECK mới, GIỮ NGUYÊN mọi dòng (chỉ đổi ràng buộc, không sửa dữ liệu),
+    rồi chạy lại DDL để tạo lại index + trigger append-only. Trả True nếu đã dựng lại.
+
+    Đặt ở đây (không ở db.py) để giữ luật "chỉ decisions_store ghi human_decisions"."""
+    from ..db import ACTIONS, ORCHESTRATION_SCHEMA, REASON_CODES
+
+    found = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='human_decisions'").fetchone()
+    if found is None:
+        return False
+    sql = found[0] or ""
+    if all(f"'{c}'" in sql for c in REASON_CODES) and all(f"'{a}'" in sql for a in ACTIONS):
+        return False
+    body = ORCHESTRATION_SCHEMA.split("CREATE TABLE IF NOT EXISTS human_decisions", 1)[1]
+    create = "CREATE TABLE human_decisions" + body.split(");", 1)[0] + ");"
+    conn.execute("BEGIN")
+    try:
+        # View tham chiếu bảng: RENAME sẽ viết lại view sang tên _old rồi hỏng khi DROP -> bỏ
+        # view trước, DDL cuối hàm tạo lại.
+        conn.execute("DROP VIEW IF EXISTS dependency_current_state")
+        conn.execute("ALTER TABLE human_decisions RENAME TO human_decisions_old")
+        conn.execute(create)
+        conn.execute("INSERT INTO human_decisions SELECT * FROM human_decisions_old")
+        conn.execute("DROP TABLE human_decisions_old")  # kéo theo index/trigger cũ
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    conn.executescript(ORCHESTRATION_SCHEMA)  # tạo lại index + trigger (IF NOT EXISTS)
+    return True

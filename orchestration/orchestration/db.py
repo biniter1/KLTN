@@ -33,7 +33,7 @@ from . import _paths  # noqa: F401
 PIPELINE_STEPS = ("trial", "scenario_check", "traffic_collector", "config_collector", "tier1", "tier2")
 RUN_STATUSES = ("RUNNING", "SUCCESS", "FAILED")
 
-# DASHBOARD_DESIGN.md mục 2 — 11 reason_code.
+# DASHBOARD_DESIGN.md mục 2 — 11 reason_code + 2 mã port (chốt 22/10/2026: cổng port ở cửa ra).
 REASON_CODES = (
     "CLEAN_CONFIG_MATCH",
     "NEEDS_MANUAL_SELECTOR",
@@ -46,6 +46,8 @@ REASON_CODES = (
     "UNATTRIBUTED_CONFIG_CHANGE",
     "EMERGENCY_EXCEPTION_EXPIRED",
     "STALE_PERMISSION",
+    "NEEDS_MANUAL_PORT",
+    "PORT_CONFLICT",
 )
 
 ACTIONS = (
@@ -57,6 +59,7 @@ ACTIONS = (
     "ATTRIBUTE",
     "REVOKE",
     "OVERRIDE_WITH_JUSTIFICATION",
+    "SUBMIT_PORT",
 )
 
 

@@ -220,7 +220,7 @@ def test_latest_decision_wins_in_current_state(client, seed_edges):
 
 
 # ---------------------------------------------------------------------------
-# POST /decisions — 11 reason_code, luật action + payload
+# POST /decisions — 13 reason_code, luật action + payload
 # ---------------------------------------------------------------------------
 
 KEY = f"{NS}|frontend|frontend|{NS}|cartservice|GRPC|7070"
@@ -241,6 +241,8 @@ FUTURE = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
      "ATTRIBUTE", {"owner": "team-web"}),
     ("EMERGENCY_EXCEPTION_EXPIRED", {"exception_id": "exc_12"}, "EXTEND_EXCEPTION", {"new_expires_at": FUTURE}),
     ("STALE_PERMISSION", {"identity_key": KEY}, "REVOKE", {}),
+    ("NEEDS_MANUAL_PORT", {"identity_key": KEY}, "SUBMIT_PORT", {"port": 7070}),
+    ("PORT_CONFLICT", {"identity_key": KEY}, "SUBMIT_PORT", {"port": 26379}),
 ])
 def test_each_reason_code_accepts_its_valid_action(client, reason, target, action, payload):
     resp = client.post("/decisions", json={"reason_code": reason, "target_ref": target, "decided_by": "bin",
@@ -265,6 +267,10 @@ def test_each_reason_code_accepts_its_valid_action(client, reason, target, actio
     ("STALE_PERMISSION", {"identity_key": "khong-dung-dinh-dang"}, "REVOKE", {}, "7 phần"),
     ("NOT_A_REASON", {"identity_key": KEY}, "APPROVE", {}, "reason_code"),
     ("STALE_PERMISSION", {"identity_key": KEY}, "NUKE", {}, "action"),
+    ("NEEDS_MANUAL_PORT", {"identity_key": KEY}, "SUBMIT_PORT", {}, "payload.port"),
+    ("NEEDS_MANUAL_PORT", {"identity_key": KEY}, "SUBMIT_PORT", {"port": 70000}, "payload.port"),
+    ("PORT_CONFLICT", {"identity_key": KEY}, "SUBMIT_PORT", {"port": "7070"}, "payload.port"),
+    ("NEEDS_MANUAL_PORT", {"identity_key": KEY}, "APPROVE", {}, "không áp dụng"),
 ])
 def test_invalid_decisions_rejected_with_422_and_not_stored(client, reason, target, action, payload, fragment):
     resp = client.post("/decisions", json={"reason_code": reason, "target_ref": target, "decided_by": "bin",
@@ -282,7 +288,8 @@ def test_decided_by_required(client):
 
 def test_reason_codes_catalogue(client):
     cat = client.get("/reason-codes").json()
-    assert len(cat) == 11
+    assert len(cat) == 13
+    assert cat["NEEDS_MANUAL_PORT"]["allowed_actions"] == ["REJECT", "SUBMIT_PORT"]
     assert cat["EMERGENCY_EXCEPTION_EXPIRED"]["allowed_actions"] == ["EXTEND_EXCEPTION", "MAKE_PERMANENT", "REVOKE"]
     assert cat["STALE_PERMISSION"]["generated_by_review_queue"] is False
 
@@ -408,3 +415,84 @@ def test_dependencies_history_requires_run_id(client, seeded_trial):
     assert client.get("/dependencies", params={"history": True}).status_code == 400
     rows = client.get("/dependencies", params={"history": True, "run_id": "trial-01"}).json()
     assert rows and json.dumps(rows)
+
+
+# ---------------------------------------------------------------------------
+# Cổng port ở cửa ra (chốt 22/10/2026): NEEDS_MANUAL_PORT / PORT_CONFLICT
+# ---------------------------------------------------------------------------
+
+
+def _port_edge(dst, port, status=DependencyStatus.OBSERVED_STRONG, *, port_source="observed", flags=(), **kw):
+    return DependencyEdgeResult(
+        identity_key=IdentityKey(NS, "frontend", "frontend", NS, dst, "GRPC", port),
+        destination_service_ref=ServiceRef(dst, NS), scope=Scope.IN_CLUSTER, traffic_class=TrafficClass.BUSINESS,
+        count=100, distinct_days=7, error_ratio=0.0, unstable=False, config_finding=None, score=0.97,
+        dependency_status=status, snapshot_id="demo", port_source=port_source, flags=list(flags), **kw)
+
+
+def test_review_queue_port_gate(client, seed_edges):
+    seed_edges("port-01", [
+        _port_edge("a-unknown", None, port_source="unknown", flags=["port_unresolved"]),
+        _port_edge("b-multi", None, port_source="unknown", flags=["multiple_ports_seen", "port_unresolved"]),
+        _port_edge("c-inferred-differs", 7070, port_source="inferred_single_port", flags=["config_port_differs"]),
+        _port_edge("d-observed-differs", 7070, port_source="observed_log", flags=["config_port_differs"]),
+        _port_edge("e-protocol-match", 7070, port_source="inferred_protocol_match"),
+        _port_edge("f-weak-unknown", None, DependencyStatus.OBSERVED_WEAK, port_source="unknown"),
+        _port_edge("g-selector-unknown", None, DependencyStatus.NEEDS_MANUAL_SELECTOR, port_source="unknown"),
+    ])
+    queue = client.get("/review-queue", params={"run_id": "port-01"}).json()
+    got = sorted((i["reason_code"], i["identity_key"].split("|")[4]) for i in queue)
+    # port THẤY ĐƯỢC lệch config (d) và port suy theo tên giao thức không mâu thuẫn (e) cho qua;
+    # cạnh WEAK (f) chưa tới bước sinh rule nên chưa đòi port.
+    assert got == [("NEEDS_MANUAL_PORT", "a-unknown"), ("NEEDS_MANUAL_PORT", "g-selector-unknown"),
+                   ("NEEDS_MANUAL_SELECTOR", "g-selector-unknown"),
+                   ("PORT_CONFLICT", "b-multi"), ("PORT_CONFLICT", "c-inferred-differs")]
+    item = next(i for i in queue if i["reason_code"] == "NEEDS_MANUAL_PORT")
+    assert item["allowed_actions"] == ["REJECT", "SUBMIT_PORT"]
+
+
+def test_submit_port_resolves_queue_item(client, seed_edges):
+    seed_edges("port-02", [_port_edge("svc-x", None, port_source="unknown")])
+    item = next(i for i in client.get("/review-queue", params={"run_id": "port-02"}).json()
+                if i["reason_code"] == "NEEDS_MANUAL_PORT")
+    resp = _post_decision(client, "NEEDS_MANUAL_PORT", item["identity_key"], action="SUBMIT_PORT",
+                          payload={"port": 8080})
+    assert resp.status_code == 201, resp.text
+    assert client.get("/review-queue", params={"run_id": "port-02"}).json() == []
+
+
+def test_old_db_check_constraint_migrated_keeping_rows(infra_files, make_client):
+    """DB tạo trước 22/10 có CHECK cũ (11 reason_code) -> API khởi động dựng lại bảng,
+    giữ nguyên quyết định cũ, nhận được mã mới, trigger append-only vẫn còn."""
+    import sqlite3
+
+    import orchestration.db as dbmod
+
+    old_codes = [c for c in dbmod.REASON_CODES if c not in ("NEEDS_MANUAL_PORT", "PORT_CONFLICT")]
+    old_actions = [a for a in dbmod.ACTIONS if a != "SUBMIT_PORT"]
+    old_schema = (dbmod.ORCHESTRATION_SCHEMA
+                  .replace(dbmod._in_list(dbmod.REASON_CODES), dbmod._in_list(old_codes))
+                  .replace(dbmod._in_list(dbmod.ACTIONS), dbmod._in_list(old_actions)))
+    conn = sqlite3.connect(str(infra_files["db_path"]))
+    from tier1 import storage as tier1_storage
+    conn.executescript(tier1_storage.SCHEMA)
+    tier1_storage.migrate(conn)
+    conn.executescript(old_schema)
+    conn.execute("INSERT INTO human_decisions (decision_id, reason_code, target_ref, decided_by, decided_at, action)"
+                 " VALUES ('dec_old', 'STALE_PERMISSION', '{}', 'bin', '2026-10-01T00:00:00Z', 'REVOKE')")
+    conn.commit()
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO human_decisions (decision_id, reason_code, target_ref, decided_by, decided_at, action)"
+                     " VALUES ('dec_x', 'NEEDS_MANUAL_PORT', '{}', 'bin', '2026-10-01T00:00:00Z', 'SUBMIT_PORT')")
+    conn.close()
+
+    client = make_client()
+    resp = _post_decision(client, "NEEDS_MANUAL_PORT", KEY, action="SUBMIT_PORT", payload={"port": 7070})
+    assert resp.status_code == 201, resp.text
+    ids = {d["decision_id"] for d in client.get("/decisions").json()}
+    assert "dec_old" in ids and len(ids) == 2
+    conn = sqlite3.connect(str(infra_files["db_path"]))
+    with pytest.raises(sqlite3.DatabaseError, match="append-only"):
+        conn.execute("DELETE FROM human_decisions WHERE decision_id = 'dec_old'")
+    assert conn.execute("SELECT count(*) FROM sqlite_master WHERE name='dependency_current_state'").fetchone()[0] == 1
+    conn.close()
