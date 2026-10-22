@@ -62,6 +62,12 @@ REASONS: dict[str, ReasonSpec] = {
                                     "Migration Planner (cạnh kết luận chưa xác định được port)", "medium", True),
     "PORT_CONFLICT": ReasonSpec("edge", frozenset({"SUBMIT_PORT", "REJECT"}),
                                 "Migration Planner (log thấy nhiều port / port suy ra lệch config)", "medium", True),
+    # Cạnh chỉ toàn nhiễu chưa xác minh (TIER1_DESIGN mục 5, chốt 15/10): Tầng 1 đặt
+    # needs_human_review nhưng trước 22/10 không mã nào đưa vào hàng đợi -> cạnh không ai
+    # duyệt, không được mở -> bị chặn khi bật default-deny (false negative).
+    "NOISE_ONLY_REVIEW": ReasonSpec("edge", frozenset({"APPROVE", "REJECT"}),
+                                    "Tier 1 mục 5 (cạnh chỉ healthcheck/control plane/monitoring chưa xác minh)",
+                                    "medium", True),
 }
 
 assert set(REASONS) == set(REASON_CODES), "REASONS phải phủ đúng mọi reason_code của db.py"
@@ -191,6 +197,8 @@ def edge_review_reasons(row: dict, sensitive_namespaces: frozenset) -> list[str]
     reasons: list[str] = []
     if status == "NEEDS_MANUAL_SELECTOR":
         reasons.append("NEEDS_MANUAL_SELECTOR")
+    if "noise_only" in _row_flags(row) and not row.get("auto_allow_reason") and status != "OBSERVED_STRONG":
+        reasons.append("NOISE_ONLY_REVIEW")
     if status == "NOT_OBSERVED" and row.get("config_finding") in ("FOUND_STRUCTURAL", "FOUND_EMBEDDED"):
         reasons.append("CLEAN_CONFIG_MATCH")
     if tier2 in TIER2_REVIEW_STATUSES:

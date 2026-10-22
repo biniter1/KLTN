@@ -220,7 +220,7 @@ def test_latest_decision_wins_in_current_state(client, seed_edges):
 
 
 # ---------------------------------------------------------------------------
-# POST /decisions — 13 reason_code, luật action + payload
+# POST /decisions — 14 reason_code, luật action + payload
 # ---------------------------------------------------------------------------
 
 KEY = f"{NS}|frontend|frontend|{NS}|cartservice|GRPC|7070"
@@ -243,6 +243,7 @@ FUTURE = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
     ("STALE_PERMISSION", {"identity_key": KEY}, "REVOKE", {}),
     ("NEEDS_MANUAL_PORT", {"identity_key": KEY}, "SUBMIT_PORT", {"port": 7070}),
     ("PORT_CONFLICT", {"identity_key": KEY}, "SUBMIT_PORT", {"port": 26379}),
+    ("NOISE_ONLY_REVIEW", {"identity_key": KEY}, "APPROVE", {}),
 ])
 def test_each_reason_code_accepts_its_valid_action(client, reason, target, action, payload):
     resp = client.post("/decisions", json={"reason_code": reason, "target_ref": target, "decided_by": "bin",
@@ -288,7 +289,7 @@ def test_decided_by_required(client):
 
 def test_reason_codes_catalogue(client):
     cat = client.get("/reason-codes").json()
-    assert len(cat) == 13
+    assert len(cat) == 14
     assert cat["NEEDS_MANUAL_PORT"]["allowed_actions"] == ["REJECT", "SUBMIT_PORT"]
     assert cat["EMERGENCY_EXCEPTION_EXPIRED"]["allowed_actions"] == ["EXTEND_EXCEPTION", "MAKE_PERMANENT", "REVOKE"]
     assert cat["STALE_PERMISSION"]["generated_by_review_queue"] is False
@@ -496,3 +497,16 @@ def test_old_db_check_constraint_migrated_keeping_rows(infra_files, make_client)
         conn.execute("DELETE FROM human_decisions WHERE decision_id = 'dec_old'")
     assert conn.execute("SELECT count(*) FROM sqlite_master WHERE name='dependency_current_state'").fetchone()[0] == 1
     conn.close()
+
+
+def test_noise_only_edges_go_to_human_unless_verified_monitoring(client, seed_edges):
+    seed_edges("noise-01", [
+        _port_edge("hc-only", 8080, DependencyStatus.OBSERVED_WEAK, flags=["noise_only"]),
+        _port_edge("prom-verified", 9090, DependencyStatus.OBSERVED_WEAK, flags=["noise_only"],
+                   auto_allow_reason="VERIFIED_MONITORING"),
+        _port_edge("business", 7070, DependencyStatus.OBSERVED_WEAK),
+    ])
+    queue = client.get("/review-queue", params={"run_id": "noise-01"}).json()
+    got = sorted((i["reason_code"], i["identity_key"].split("|")[4]) for i in queue)
+    # monitoring đã xác minh: Planner tự mở; cạnh WEAK nghiệp vụ: đi Tier 2, không vào đây
+    assert got == [("NOISE_ONLY_REVIEW", "hc-only")]
