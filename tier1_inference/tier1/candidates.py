@@ -28,6 +28,7 @@ PORT_CONFLICT. Tầng 1 chỉ ghi cờ, không đổi điểm/trạng thái.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -82,6 +83,41 @@ def discover_candidates(
         cand.config_evidence.sort(key=lambda e: e.sort_key)
 
     return candidates
+
+
+# ---------------------------------------------------------------------------
+# Lấy port từ cấu hình cho cạnh chưa có port (chốt 27/10/2026)
+# ---------------------------------------------------------------------------
+
+
+def fill_port_from_config(cand: Candidate) -> dict[IdentityKey, IdentityKey]:
+    """Cạnh có traffic nhưng chưa xác định được port (observed -> log -> Service 1 port ->
+    protocol match đều thất bại): nếu bằng chứng cấu hình SẠCH của cùng cặp chỉ có ĐÚNG MỘT
+    port (đã là targetPort, collector đổi sẵn) thì lấy port đó, `port_source = "config"`,
+    cờ `port_from_config`. Hai port trở lên -> không đoán, giữ None (cửa ra NEEDS_MANUAL_PORT).
+    Không ghi đè nếu khóa mới trùng một cạnh đã có của cặp (giữ None, cờ
+    `config_port_taken`) — tránh gộp ngầm hai cạnh khác nhau.
+
+    Sửa tại chỗ `cand.observed`; trả về ánh xạ khóa cũ -> khóa mới để pipeline đổi theo."""
+    ports = {ev.port for ev in cand.config_evidence
+             if ev.port is not None and ev.config_finding.is_clean_match}
+    remap: dict[IdentityKey, IdentityKey] = {}
+    if len(ports) != 1:
+        return remap
+    (port,) = ports
+    for key in [k for k in cand.observed if k.port is None]:
+        new_key = dataclasses.replace(key, port=port)
+        agg = cand.observed[key]
+        if new_key in cand.observed:
+            agg.flags.add("config_port_taken")
+            continue
+        del cand.observed[key]
+        agg.identity_key = new_key
+        agg.port_source = "config"
+        agg.flags.add("port_from_config")
+        cand.observed[new_key] = agg
+        remap[key] = new_key
+    return remap
 
 
 # ---------------------------------------------------------------------------

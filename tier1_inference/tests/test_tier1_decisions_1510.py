@@ -91,7 +91,8 @@ def test_match_levels_and_protocol_mismatch_flag():
     ], [
         ev("frontend", "productcatalogservice", 3550),             # config không ghi protocol
         ev("frontend", "cartservice", 7070, protocol="GRPC"),      # lệch protocol
-        ev("frontend", "shippingservice", 50051),                  # cạnh chưa biết port
+        ev("frontend", "shippingservice", None),                   # cả hai thiếu port (27/10: config có
+                                                                   # đúng 1 port thì cạnh lấy port đó)
     ], "s")
     assert by_dest(results, "productcatalogservice")[0].config_match_level == EXACT
     cart = by_dest(results, "cartservice")[0]

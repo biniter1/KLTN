@@ -83,7 +83,7 @@ class TrafficAggregate:
         return max(self.class_counts, key=lambda c: self.class_counts[c])
 
 
-_PORT_SOURCE_RANK = {"observed": 0, "observed_log": 1, "inferred_single_port": 2, "inferred_protocol_match": 3, "unknown": 9}
+_PORT_SOURCE_RANK = {"observed": 0, "observed_log": 1, "inferred_single_port": 2, "inferred_protocol_match": 3, "config": 4, "unknown": 9}
 
 
 def aggregate_series(series_list: list[TrafficSeries]) -> dict[IdentityKey, TrafficAggregate]:

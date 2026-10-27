@@ -4,7 +4,8 @@ Orchestrator — nối toàn bộ các bước thành `run_tier1()`, đúng th�
 
     [stage 1] classify từng series (mục 2.2) — DNS cũng quyết ở đây (traffic_class == DNS)
     [stage 2] aggregate lên cấp cạnh (mục 2b)
-    [stage 3] discover_candidates theo cặp + khớp config với cạnh theo port (mục 1, 1b)
+    [stage 3] discover_candidates theo cặp · lấy port từ config cho cạnh chưa có port
+              (chốt 27/10) · khớp config với cạnh theo port (mục 1, 1b)
     [stage 4] scoring từng cạnh (mục 4/4a)
     [stage 5] trạng thái: Q1 count=0 -> NOT_OBSERVED · Q2 cạnh chỉ toàn nhiễu -> nhánh
               nhiễu · Q3 UNKNOWN · Q4 hysteresis (mục 5, 5b)
@@ -23,7 +24,14 @@ from typing import Optional
 
 from . import storage
 from .aggregation import TrafficAggregate, aggregate_series
-from .candidates import Candidate, EdgeConfigMatch, discover_candidates, group_by_port, match_config_to_edges
+from .candidates import (
+    Candidate,
+    EdgeConfigMatch,
+    discover_candidates,
+    fill_port_from_config,
+    group_by_port,
+    match_config_to_edges,
+)
 from .classification import classify_all
 from .config import DEFAULT_CONFIG, ScoringConfig
 from .dns_external import classify_scope
@@ -67,6 +75,9 @@ def prepare_snapshot(
     traffic_aggregates = aggregate_series(normal_series)
     dns_aggregates = aggregate_series(dns_series)
     candidates = discover_candidates(traffic_aggregates, config_evidence)
+    for cand in candidates.values():
+        for old_key, new_key in fill_port_from_config(cand).items():
+            traffic_aggregates[new_key] = traffic_aggregates.pop(old_key)
     return PreparedSnapshot(candidates, traffic_aggregates, dns_aggregates)
 
 
