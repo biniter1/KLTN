@@ -362,3 +362,10 @@ def test_stateful_uses_only_own_trial_lineage(make_settings, make_deps):
     second = _evidence(settings.db_path, "trial-01.a2")
     real_edge2 = next(r for r in second if r["identity_key"] == real_edge["identity_key"])
     assert real_edge2["previous_status"] == real_edge["dependency_status"]
+
+
+def test_cli_batch_accepts_end_time():
+    from orchestration.cli_batch import _parse_dt, build_parser
+
+    args = build_parser().parse_args(["--run-id", "trial-01", "--end-time", "2026-10-26T23:59:59Z"])
+    assert _parse_dt(args.end_time).isoformat() == "2026-10-26T23:59:59+00:00"

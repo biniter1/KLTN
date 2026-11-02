@@ -375,3 +375,29 @@ def test_make_metrics_client_selects_backend(monkeypatch):
     assert isinstance(make_metrics_client("http://x"), VictoriaMetricsClient)
     with pytest.raises(ValueError):
         make_metrics_client("http://x", "influx")
+
+
+# ---------------------------------------------------------------------------
+# Cửa sổ quá khứ: `now` truyền vào = mốc cuối cửa sổ cho MỌI query
+# ---------------------------------------------------------------------------
+
+
+def test_collect_traffic_past_window_passes_eval_time_to_window_and_gap_queries():
+    from datetime import datetime, timezone
+
+    seen = []
+    client = FakePrometheusClient(matcher=lambda promql, time: seen.append((promql, time)) or [])
+    end = datetime(2026, 10, 26, 23, 59, 59, tzinfo=timezone.utc)
+    collect_traffic(client, window_days=7, namespaces=["shared-eval"], now=end)
+    no_at = [(q, t) for q, t in seen if " @ " not in q]   # tổng cửa sổ + scrape gap
+    assert len(no_at) == 5
+    assert all(t == f"{end.timestamp():.0f}" for _, t in no_at)
+    days = sorted(q.rsplit("@ ", 1)[1].rstrip(")") for q, _ in seen if " @ " in q)
+    assert days[-1] == f"{end.timestamp():.0f}"   # bucket ngày 0 kết thúc đúng mốc cuối cửa sổ
+
+
+def test_collect_traffic_without_now_queries_current_time():
+    seen = []
+    client = FakePrometheusClient(matcher=lambda promql, time: seen.append(time) or [])
+    collect_traffic(client, window_days=2, namespaces=["shared-eval"])
+    assert seen and all(t is None for t in seen[:5])

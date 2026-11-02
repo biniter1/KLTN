@@ -64,6 +64,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--kubeconfig", default=None)
     p.add_argument("--deployed-at", default=None,
                    help="ISO time lúc harness bắt đầu chạy; mặc định tự đọc startTime của pod test-harness=true")
+    p.add_argument("--end-time", default=None,
+                   help="mốc CUỐI cửa sổ traffic (ISO UTC, vd 2026-10-26T23:59:59Z) — mặc định giờ hiện tại. "
+                        "Dùng khi chạy lại trên cửa sổ quá khứ còn trong retention Prometheus; áp cho cả "
+                        "kiểm tra đủ window_days, traffic Tier 1 và tool read_extended_traffic_window của Tier 2")
     p.add_argument("--allow-short-window", action="store_true",
                    help="CHỈ để thử pipeline: bỏ qua kiểm tra đã đủ --window-days")
     p.add_argument("--fail-on-scrape-gap", action="store_true",
@@ -94,6 +98,11 @@ def main(argv=None) -> int:  # pragma: no cover - nối hạ tầng thật; logi
     clock = (fixed_deployment_clock(_parse_dt(args.deployed_at)) if args.deployed_at
              else kubernetes_deployment_clock(args.kubeconfig))
 
+    end_time = _parse_dt(args.end_time) if args.end_time else None
+    now_fn = (lambda: end_time) if end_time is not None else None
+    if end_time is not None:
+        print(f"[{args.run_id}] cửa sổ traffic {args.window_days} ngày kết thúc tại {end_time.isoformat()}")
+
     tier2_runner = None
     if not args.skip_tier2:
         if not args.source_root:
@@ -102,7 +111,7 @@ def main(argv=None) -> int:  # pragma: no cover - nối hạ tầng thật; logi
             return 2
         tier2_runner = build_brain_runner(db_path=Path(args.db), api_server_url=args.api_server,
                                           source_root=Path(args.source_root), prometheus_client=prom,
-                                          namespaces=[args.namespace])
+                                          namespaces=[args.namespace], now=now_fn)
 
     settings = BatchSettings(
         run_id=args.run_id, db_path=Path(args.db), namespace=args.namespace,
@@ -118,6 +127,7 @@ def main(argv=None) -> int:  # pragma: no cover - nối hạ tầng thật; logi
         tier2_runner=tier2_runner,
         log_client=log_client,
         monitoring_services=tuple(args.monitoring_service or ("istio-system/prometheus",)),
+        **({"now": now_fn} if now_fn is not None else {}),
     )
     outcome = BatchOrchestrator(settings, deps).run()
     if outcome.status == "SUCCESS":

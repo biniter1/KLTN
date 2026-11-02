@@ -41,6 +41,7 @@ import dataclasses
 import json
 import sys
 from pathlib import Path
+from datetime import datetime, timezone
 
 
 def _add_tier1_to_path(tier1_path: str) -> None:
@@ -104,14 +105,24 @@ def _make_clients(prometheus_url: str, metrics_backend: str | None, logs_url: st
 
 
 def _collect_traffic_with_context(k8s_reader, prometheus_url, metrics_backend, logs_url, allow_partial,
-                                  window_days, namespaces, monitoring_services):
+                                  window_days, namespaces, monitoring_services, end_time=None):
     from tier1.cluster_context import build_cluster_context
     from tier1.traffic_collector import collect_traffic
 
     metrics, logs = _make_clients(prometheus_url, metrics_backend, logs_url, allow_partial)
     context = build_cluster_context(k8s_reader, monitoring_services)
     return collect_traffic(metrics, window_days=window_days, namespaces=namespaces, injected=None,
-                           context=context, log_client=logs)
+                           now=end_time, context=context, log_client=logs)
+
+
+def parse_end_time(value):
+    """`--end-time` ISO-8601 (vd 2026-10-26T23:59:59Z) -> datetime UTC; None/"" -> None (giờ hiện tại)."""
+    if not value:
+        return None
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _port_source_summary(series) -> dict:
@@ -133,6 +144,7 @@ def export_one_trial(
     logs_url: str | None = None,
     allow_partial: bool = False,
     monitoring_services: tuple = ("istio-system/prometheus",),
+    end_time=None,
 ) -> Path:
     from tier1.config_collector import KubernetesReader, collect_config_evidence
 
@@ -162,7 +174,7 @@ def export_one_trial(
           f"{', logs: ' + logs_url if logs_url else ''})...")
     collection = _collect_traffic_with_context(
         k8s_reader, prometheus_url, metrics_backend, logs_url, allow_partial,
-        window_days, [trial_id], monitoring_services,
+        window_days, [trial_id], monitoring_services, end_time,
     )
     if collection.scrape_gap.has_gap:
         print(
@@ -278,6 +290,7 @@ def export_shared_trials(
     logs_url: str | None = None,
     allow_partial: bool = False,
     monitoring_services: tuple = ("istio-system/prometheus",),
+    end_time=None,
 ) -> list[Path]:
     """Chế độ "hạ tầng dùng chung" (05_deploy_shared.sh) — 1 namespace K8s DUY NHẤT chứa
     1 Online Boutique thật + N virtual trial. CHỈ thu thập traffic/config MỘT LẦN từ
@@ -300,7 +313,7 @@ def export_shared_trials(
           f"{prometheus_url}{', logs: ' + logs_url if logs_url else ''})...")
     collection = _collect_traffic_with_context(
         k8s_reader, prometheus_url, metrics_backend, logs_url, allow_partial,
-        window_days, [shared_namespace], monitoring_services,
+        window_days, [shared_namespace], monitoring_services, end_time,
     )
     if collection.scrape_gap.has_gap:
         print(
@@ -339,6 +352,9 @@ def main() -> None:
     parser.add_argument("--monitoring-service", action="append", default=None,
                         help="ns/tên-service Prometheus/vmagent (lặp lại được; mặc định istio-system/prometheus)")
     parser.add_argument("--window-days", type=int, default=7)
+    parser.add_argument("--end-time", default=None,
+                        help="Mốc CUỐI cửa sổ traffic (ISO-8601 UTC, vd 2026-10-26T23:59:59Z). Mặc định: giờ hiện tại. "
+                             "Dùng để chạy lại trên cửa sổ quá khứ còn trong retention của Prometheus.")
     parser.add_argument("--kubeconfig", default=None, help="Mặc định: dùng kubeconfig đang active (~/.kube/config)")
     parser.add_argument(
         "--tier1-path",
@@ -382,7 +398,10 @@ def main() -> None:
     traffic_kwargs = dict(
         metrics_backend=args.metrics_backend, logs_url=args.logs_url, allow_partial=args.allow_partial,
         monitoring_services=tuple(args.monitoring_service or ("istio-system/prometheus",)),
+        end_time=parse_end_time(args.end_time),
     )
+    if traffic_kwargs["end_time"] is not None:
+        print(f"Cửa sổ traffic: {args.window_days} ngày kết thúc tại {traffic_kwargs['end_time'].isoformat()}")
 
     if args.shared:
         if not args.owner_map:

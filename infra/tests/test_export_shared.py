@@ -206,3 +206,12 @@ def test_split_skips_trial_with_no_ground_truth_file(tmp_path, capsys):
     )
     assert len(out_paths) == 1
     assert "trial-02" in capsys.readouterr().err
+
+
+def test_parse_end_time_utc():
+    from datetime import datetime, timezone
+
+    assert export_mod.parse_end_time(None) is None
+    assert export_mod.parse_end_time("2026-10-26T23:59:59Z") == datetime(2026, 10, 26, 23, 59, 59, tzinfo=timezone.utc)
+    assert export_mod.parse_end_time("2026-10-27T06:59:59+07:00") == datetime(2026, 10, 26, 23, 59, 59,
+                                                                            tzinfo=timezone.utc)
