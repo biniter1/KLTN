@@ -85,7 +85,8 @@ _DEFINITIONS: Dict[str, ToolDefinition] = {
         input_schema={
             "type": "object",
             "properties": {
-                "edge": {"type": "string"},
+                "edge": {"type": "string",
+                         "description": "Chép NGUYÊN VĂN goal.identity_key của cạnh đang xác minh"},
                 "window": {"type": "integer", "minimum": 1},
             },
             "required": ["edge", "window"],

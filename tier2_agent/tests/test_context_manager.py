@@ -114,6 +114,7 @@ def test_format_context_wraps_evidence_in_tags_and_includes_system_instruction(e
     assert "không phải" in ctx.system_instruction.lower() or "khong phai" in ctx.system_instruction.lower()
     assert ctx.goal["escalation_reason"] == "test reason"
     assert ctx.goal["dependency_status"] == escalation.dependency_status
+    assert ctx.goal["identity_key"] == escalation.identity_key
     assert ctx.hypothesis_cap_reached is False
     assert len(ctx.available_tools) == 4
 
@@ -141,3 +142,17 @@ def test_format_context_carries_system_notices_through():
     )
     assert ctx.system_notices == ["evidence_id E99 does not exist"]
     assert ctx.hypothesis_cap_reached is True
+
+
+def test_goal_identity_key_passes_extended_window_validation(escalation_dict_factory):
+    """Hồi quy lỗi lần chạy 02/11: goal thiếu chuỗi identity_key nên mọi lời gọi
+    read_extended_traffic_window đều bị từ chối. Model chép goal.identity_key phải qua."""
+    escalation = EscalationRecord.from_dict(escalation_dict_factory())
+    ctx = format_context({}, escalation=escalation, available_tools=ToolRegistry.available_tools(),
+                         escalation_reason="r", hypothesis_cap_reached=False)
+    from tier2_agent.config import Tier2Config
+
+    registry = ToolRegistry(Tier2Config(), {})
+    registry.validate_input("read_extended_traffic_window",
+                            {"edge": ctx.goal["identity_key"], "window": 14},
+                            allowed_services=frozenset(), edge_identity_key=escalation.identity_key)
