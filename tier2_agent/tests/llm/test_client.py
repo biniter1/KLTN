@@ -90,3 +90,79 @@ def test_anthropic_client_raises_when_no_tool_use_block():
     )
     with pytest.raises(ValueError):
         client.generate(ctx, [])
+
+
+# --- ghi token (02/11/2026) -------------------------------------------------
+
+
+class _FakeUsage:
+    def __init__(self, i, o):
+        self.input_tokens = i
+        self.output_tokens = o
+        self.cache_creation_input_tokens = 0
+        self.cache_read_input_tokens = 0
+
+
+def _ctx():
+    from tier2_agent.context_manager import ModelContext
+
+    return ModelContext(goal={}, available_tools=[], hypotheses=[], system_instruction="x",
+                        system_notices=[], hypothesis_cap_reached=False)
+
+
+def test_anthropic_client_keeps_last_usage():
+    response = _FakeMessage([_FakeToolUseBlock("submit_model_output", {"reasoning": "r", "action": "conclude"})])
+    response.usage = _FakeUsage(1200, 300)
+    response.model = "claude-test"
+    client = AnthropicModelClient(api_key="unused", client=_FakeAnthropicClient(response))
+    client.generate(_ctx(), [])
+    assert client.last_usage == {"model": "claude-test", "input_tokens": 1200, "output_tokens": 300,
+                                 "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
+
+
+def test_usage_recorder_writes_one_row_per_call_and_resets_per_session():
+    from tier2_agent.llm.client import UsageRecordingModelClient
+    from tier2_agent.storage import Storage
+
+    response = _FakeMessage([_FakeToolUseBlock("submit_model_output", {"reasoning": "r", "action": "conclude"})])
+    response.usage = _FakeUsage(100, 20)
+    inner = AnthropicModelClient(api_key="unused", model="m", client=_FakeAnthropicClient(response))
+    storage = Storage(":memory:")
+    rec = UsageRecordingModelClient(inner, storage)
+
+    rec.begin_session("s1")
+    assert rec.generate(_ctx(), []) == {"reasoning": "r", "action": "conclude"}  # đầu ra không đổi
+    rec.generate(_ctx(), [])
+    rec.begin_session("s2")
+    rec.generate(_ctx(), [])
+
+    s1 = storage.get_llm_usage("s1")
+    assert [r["call_index"] for r in s1] == [1, 2]
+    assert sum(r["input_tokens"] for r in s1) == 200 and s1[0]["model"] == "m"
+    assert [r["call_index"] for r in storage.get_llm_usage("s2")] == [1]
+
+
+def test_usage_recorder_records_tokens_even_when_call_fails():
+    from tier2_agent.llm.client import UsageRecordingModelClient
+    from tier2_agent.storage import Storage
+
+    response = _FakeMessage([])  # không có tool_use -> ValueError, nhưng token đã tốn
+    response.usage = _FakeUsage(50, 5)
+    storage = Storage(":memory:")
+    rec = UsageRecordingModelClient(AnthropicModelClient(api_key="unused", client=_FakeAnthropicClient(response)),
+                                    storage)
+    rec.begin_session("s")
+    with pytest.raises(ValueError):
+        rec.generate(_ctx(), [])
+    assert storage.get_llm_usage("s")[0]["input_tokens"] == 50
+
+
+def test_usage_recorder_ignores_clients_without_usage():
+    from tier2_agent.llm.client import UsageRecordingModelClient
+    from tier2_agent.storage import Storage
+
+    storage = Storage(":memory:")
+    rec = UsageRecordingModelClient(ScriptedModelClient([{"reasoning": "r", "action": "conclude"}]), storage)
+    rec.begin_session("s")
+    rec.generate(_ctx(), [])
+    assert storage.get_llm_usage("s") == []

@@ -101,12 +101,15 @@ class PrometheusTrafficWindowProvider:
 class BrainTier2Runner:
     """Adapter `Tier2Runner` (batch.py) -> `tier2_agent.brain.Brain.run_session`."""
 
-    def __init__(self, brain):
+    def __init__(self, brain, usage_recorder=None):
         self._brain = brain
+        self._usage = usage_recorder  # UsageRecordingModelClient — ghi token theo phiên (02/11)
 
     def run(self, escalation_dict: dict, session_id: str):
         from tier2_agent.escalation import EscalationRecord
 
+        if self._usage is not None:
+            self._usage.begin_session(session_id)
         return self._brain.run_session(EscalationRecord.from_dict(escalation_dict), run_id=session_id)
 
 
@@ -163,5 +166,9 @@ def build_brain_runner(
                                "ANTHROPIC_API_KEY=\"...\"` trong shell, hoặc chạy với --skip-tier2")
         model = os.environ.get("TIER2_MODEL")
         model_client = AnthropicModelClient(api_key=api_key, model=model) if model else AnthropicModelClient(api_key=api_key)
-    brain = Brain(config, registry, Storage(str(db_path)), AgentRuntime(model_client))
-    return BrainTier2Runner(brain)
+    from tier2_agent.llm.client import UsageRecordingModelClient
+
+    storage = Storage(str(db_path))
+    recorder = UsageRecordingModelClient(model_client, storage)
+    brain = Brain(config, registry, storage, AgentRuntime(recorder))
+    return BrainTier2Runner(brain, usage_recorder=recorder)
