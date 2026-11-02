@@ -219,3 +219,76 @@ def test_render_shared_is_deterministic_for_same_scenario():
     text_a = render_shared(scenario)
     text_b = render_shared(scenario)
     assert text_a == text_b
+
+
+# --- 02/11: lời gọi gRPC nghiệp vụ + lịch cạnh thưa theo ngày lịch ---
+
+def _shared_docs_v3(window_start="2026-11-04"):
+    scenario = generate_shared_trials()
+    text = render_shared(scenario, sparse_window_start=window_start)
+    return scenario, [d for d in yaml.safe_load_all(text) if d]
+
+
+def _env(dep):
+    return {e["name"]: e["value"] for e in dep["spec"]["template"]["spec"]["containers"][0]["env"]}
+
+
+def test_hidden_grpc_edges_call_a_business_method_not_reflection():
+    from render_manifests import GRPC_BUSINESS_CALLS
+
+    _, docs = _shared_docs_v3()
+    checked = 0
+    for dep in (d for d in docs if d["kind"] == "Deployment"):
+        kind = dep["metadata"]["labels"]["kltn/scenario-kind"]
+        env = _env(dep)
+        if kind not in ("STRONG_HIDDEN", "SPARSE_HIDDEN") or "grpcurl" not in env["CALL_CMD"]:
+            continue
+        checked += 1
+        assert " list" not in env["CALL_CMD"] and "-proto demo.proto" in env["CALL_CMD"]
+        addr_env = next(k for k in env if k.endswith("_SERVICE_ADDR"))
+        dest = next(d for d, v in GRPC_BUSINESS_CALLS.items() if v[0] == addr_env)
+        assert f"${addr_env}" in env["CALL_CMD"] and GRPC_BUSINESS_CALLS[dest][1] in env["CALL_CMD"]
+        assert env[addr_env].startswith(dest + ":")
+        vols = {v["name"] for v in dep["spec"]["template"]["spec"]["volumes"]}
+        assert "harness-protos" in vols
+    assert checked > 0
+
+
+def test_noise_monitoring_keeps_reflection_call():
+    _, docs = _shared_docs_v3()
+    mon = [d for d in docs if d["kind"] == "Deployment"
+           and d["metadata"]["labels"]["kltn/scenario-kind"] == "NOISE_MONITORING"]
+    assert mon and all(_env(d)["CALL_CMD"].endswith(" list") for d in mon
+                       if "grpcurl" in _env(d)["CALL_CMD"])
+
+
+def test_sparse_edges_use_calendar_dates_inside_window():
+    from datetime import date
+
+    scenario, docs = _shared_docs_v3("2026-11-04")
+    sparse = [d for d in docs if d["kind"] == "Deployment"
+              and d["metadata"]["labels"]["kltn/scenario-kind"] == "SPARSE_HIDDEN"]
+    assert len(sparse) == 15
+    for dep in sparse:
+        env = _env(dep)
+        assert "ACTIVE_DAYS" not in env
+        dates = [date.fromisoformat(x) for x in env["ACTIVE_DATES"].split(",")]
+        assert 1 <= len(dates) <= 2 and len(set(dates)) == len(dates)
+        assert all(date(2026, 11, 4) <= x <= date(2026, 11, 10) for x in dates)
+
+
+def test_sparse_dates_deterministic_and_pairs_unchanged():
+    a, docs_a = _shared_docs_v3()
+    b, docs_b = _shared_docs_v3()
+    assert a.owner_map() == b.owner_map() and docs_a == docs_b
+    # Không truyền ngày cửa sổ -> giữ hành vi cũ (ACTIVE_DAYS đếm từ lúc pod start)
+    text = render_shared(generate_shared_trials())
+    old = [d for d in yaml.safe_load_all(text) if d and d["kind"] == "Deployment"
+           and d["metadata"]["labels"]["kltn/scenario-kind"] == "SPARSE_HIDDEN"]
+    assert all("ACTIVE_DAYS" in _env(d) for d in old)
+
+
+def test_wrapper_supports_active_dates():
+    from render_manifests import WRAPPER_SCRIPT
+
+    assert "ACTIVE_DATES" in WRAPPER_SCRIPT and "date -u +%Y-%m-%d" in WRAPPER_SCRIPT

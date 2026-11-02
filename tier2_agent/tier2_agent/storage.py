@@ -48,6 +48,18 @@ CREATE TABLE IF NOT EXISTS trace_log (
 );
 CREATE INDEX IF NOT EXISTS idx_trace_log_run ON trace_log(run_id);
 
+CREATE TABLE IF NOT EXISTS llm_usage (
+    run_id TEXT NOT NULL,
+    call_index INTEGER NOT NULL,
+    model TEXT,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cache_creation_input_tokens INTEGER NOT NULL DEFAULT 0,
+    cache_read_input_tokens INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (run_id, call_index)
+);
+
 CREATE TABLE IF NOT EXISTS agent_rounds (
     run_id TEXT NOT NULL,
     iteration INTEGER NOT NULL,
@@ -138,6 +150,32 @@ class Storage:
             "UPDATE agent_sessions SET phase = ? WHERE run_id = ?", (phase, run_id)
         )
         self._conn.commit()
+
+    # --- llm_usage (02/11/2026): token của từng lần gọi Model, để báo chi phí Tier 2 ---
+
+    def append_llm_usage(self, run_id: str, call_index: int, usage: dict) -> None:
+        """Chỉ GHI LẠI số token API trả về (`message.usage`), không ảnh hưởng logic Brain."""
+        self._conn.execute(
+            "INSERT OR REPLACE INTO llm_usage (run_id, call_index, model, input_tokens, output_tokens, "
+            "cache_creation_input_tokens, cache_read_input_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                run_id,
+                call_index,
+                usage.get("model"),
+                int(usage.get("input_tokens") or 0),
+                int(usage.get("output_tokens") or 0),
+                int(usage.get("cache_creation_input_tokens") or 0),
+                int(usage.get("cache_read_input_tokens") or 0),
+                time.time(),
+            ),
+        )
+        self._conn.commit()
+
+    def get_llm_usage(self, run_id: str) -> List[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM llm_usage WHERE run_id = ? ORDER BY call_index ASC", (run_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     # --- trace_log (mục 11.1) ---
 

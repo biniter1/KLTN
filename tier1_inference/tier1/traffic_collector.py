@@ -401,10 +401,11 @@ class ScrapeGapReport:
 
 
 def check_scrape_gaps(client: PrometheusClient, job: str = "kubernetes-pods",
-                      window_days: Optional[int] = None) -> ScrapeGapReport:
+                      window_days: Optional[int] = None, time: Optional[str] = None) -> ScrapeGapReport:
     """mục 2: target ztunnel/waypoint nào có gap scrape (trong cả cửa sổ nếu có
-    `window_days`) — không tự viết logic bù trừ reset, chỉ cảnh báo."""
-    raw = client.query(build_scrape_gap_query(job, window_days))
+    `window_days`) — không tự viết logic bù trừ reset, chỉ cảnh báo.
+    `time`: epoch giây (string) để đánh giá tại mốc quá khứ; None = giờ hiện tại."""
+    raw = client.query(build_scrape_gap_query(job, window_days), time)
     targets = sorted({item.get("metric", {}).get("instance", "unknown") for item in raw})
     return ScrapeGapReport(has_gap=len(targets) > 0, affected_targets=targets)
 
@@ -447,17 +448,24 @@ def collect_traffic(
     `injected`: None = không lọc; True = chỉ traffic test; False = chỉ traffic thật."""
     from .cluster_context import annotate_series
 
+    # `now` truyền vào = mốc CUỐI cửa sổ: các query tổng cửa sổ và scrape gap được đánh giá
+    # tại đúng mốc đó (tham số `time` của API), cùng mốc với các bucket theo ngày (`@`).
+    # Nhờ vậy chạy lại được trên cửa sổ quá khứ còn trong retention. None = giờ hiện tại.
+    eval_time = f"{now.timestamp():.0f}" if now is not None else None
     now = now or datetime.now(timezone.utc)
-    scrape_gap = (check_scrape_gaps(client, scrape_job, window_days) if check_gaps
+    scrape_gap = (check_scrape_gaps(client, scrape_job, window_days, eval_time) if check_gaps
                   else ScrapeGapReport(has_gap=False))
 
     accumulators: dict[tuple, _Accumulator] = {}
     tcp_accumulators: dict[tuple, _Accumulator] = {}
 
-    parse_window_result(client.query(build_http_grpc_query(window_days, namespaces, injected)), accumulators, "count")
-    parse_window_result(client.query(build_error_query(window_days, namespaces, injected)), accumulators, "error_count")
-    parse_window_result(client.query(build_grpc_error_query(window_days, namespaces, injected)), accumulators, "error_count")
-    parse_window_result(client.query(build_tcp_query(window_days, namespaces, injected, tcp_reporter)), tcp_accumulators, "count")
+    def window_query(promql: str) -> list[dict]:
+        return client.query(promql, eval_time)
+
+    parse_window_result(window_query(build_http_grpc_query(window_days, namespaces, injected)), accumulators, "count")
+    parse_window_result(window_query(build_error_query(window_days, namespaces, injected)), accumulators, "error_count")
+    parse_window_result(window_query(build_grpc_error_query(window_days, namespaces, injected)), accumulators, "error_count")
+    parse_window_result(window_query(build_tcp_query(window_days, namespaces, injected, tcp_reporter)), tcp_accumulators, "count")
 
     for day_offset in range(window_days):
         query, day = build_daily_bucket_query(day_offset, now, namespaces, injected)

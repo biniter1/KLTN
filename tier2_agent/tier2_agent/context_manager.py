@@ -141,6 +141,10 @@ def format_context(
 
     goal = dict(escalation.raw)
     goal["escalation_reason"] = escalation_reason
+    # Chuỗi identity_key ghép (escalation.identity_key) — tool read_extended_traffic_window
+    # đòi `edge` khớp ĐÚNG chuỗi này (tool_registry.validate_input). escalation.raw chỉ có
+    # các trường rời, nên thiếu dòng này thì Model không thể gọi tool đó hợp lệ.
+    goal["identity_key"] = escalation.identity_key
 
     hyp_payload = []
     for hyp_id, view in views.items():

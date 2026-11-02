@@ -18,9 +18,11 @@ Thiết kế/đánh đổi đã chọn, cần biết khi debug:
   jsonpath='{.items[*].spec.serviceAccountName}'`), sửa `--service-account` nếu khác.
 - Sinh traffic theo protocol đích (`SERVICE_PORTS` trong scenario_pool.py):
     HTTP  -> `curlimages/curl`, gọi thẳng path
-    GRPC  -> `fullstorydev/grpcurl`, dùng `list` qua gRPC server reflection (Online
-             Boutique bật reflection theo mặc định) — KHÔNG cần biết tên method thật,
-             nhưng vẫn là 1 request gRPC thật, Envoy ghi nhận đúng `istio_requests_total`.
+    GRPC  -> `fullstorydev/grpcurl`. STRONG_HIDDEN/SPARSE_HIDDEN gọi 1 method NGHIỆP VỤ thật
+             qua demo.proto (GRPC_BUSINESS_CALLS, sửa 02/11). NOISE_MONITORING vẫn dùng
+             `list` (server reflection). LƯU Ý: giả định cũ "Online Boutique bật reflection
+             theo mặc định" là SAI — chỉ shippingservice đăng ký reflection, nên các lời gọi
+             `list` tới service khác lỗi 100% (đo thật 20–26/10: error_ratio = 1,0).
     TCP   -> `busybox`, `nc -z` (bắt tay TCP thuần, không cần nói đúng giao thức Redis)
 - Lịch chạy sparse (SPARSE_HIDDEN, `active_days_out_of_window`): 1 wrapper script POSIX
   `sh` (mount qua ConfigMap) tính số ngày đã trôi qua kể từ lúc pod khởi động, chỉ thật
@@ -36,6 +38,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -69,19 +72,84 @@ def _k8s_safe_name(name: str, max_len: int = 63) -> str:
     return name[:max_len].rstrip("-")
 
 WRAPPER_SCRIPT = r"""#!/bin/sh
-# Gọi $CMD lặp lại mỗi $INTERVAL giây, CHỈ vào những ngày trong $ACTIVE_DAYS (đếm từ
-# lúc container này start) -- rỗng = gọi mọi ngày. Dùng chung cho mọi harness Pod.
+# Gọi $CMD lặp lại mỗi $INTERVAL giây.
+#   ACTIVE_DATES (ưu tiên, 02/11): danh sách ngày lịch UTC "YYYY-MM-DD,..." -- chỉ gọi vào
+#     đúng những ngày đó, KHÔNG phụ thuộc lúc container start (pod restart / VM tắt-bật
+#     không làm lệch lịch như ACTIVE_DAYS).
+#   ACTIVE_DAYS (cũ): số ngày đếm từ lúc container start -- rỗng = gọi mọi ngày.
 set -eu
 START_EPOCH=$(date +%s)
 while true; do
   NOW=$(date +%s)
   ELAPSED_DAYS=$(( (NOW - START_EPOCH) / 86400 ))
-  if [ -z "${ACTIVE_DAYS:-}" ] || echo ",${ACTIVE_DAYS}," | grep -q ",${ELAPSED_DAYS},"; then
+  TODAY=$(date -u +%Y-%m-%d)
+  RUN=0
+  if [ -n "${ACTIVE_DATES:-}" ]; then
+    if echo ",${ACTIVE_DATES}," | grep -q ",${TODAY},"; then RUN=1; fi
+  elif [ -z "${ACTIVE_DAYS:-}" ] || echo ",${ACTIVE_DAYS}," | grep -q ",${ELAPSED_DAYS},"; then
+    RUN=1
+  fi
+  if [ "$RUN" = 1 ]; then
     sh -c "${CALL_CMD}" >/tmp/last_call.log 2>&1 || true
   fi
   sleep "${INTERVAL_SECONDS}"
 done
 """
+
+# Lời gọi gRPC NGHIỆP VỤ cho cạnh cấy STRONG_HIDDEN/SPARSE_HIDDEN (02/11). Trước đó harness
+# dùng `grpcurl list` (server reflection) -- nhưng trong Online Boutique chỉ shippingservice
+# đăng ký reflection, nên mọi cạnh cấy tới service khác lỗi 100% (UNIMPLEMENTED) và path
+# quan sát được là /grpc.reflection.../ServerReflectionInfo chứ không phải 1 method nghiệp
+# vụ -- khác hẳn 1 dependency thật. Bản này gọi method thật qua file demo.proto (mount từ
+# ConfigMap `harness-protos`), request tối thiểu hợp lệ, ưu tiên method chỉ đọc.
+# Tên biến môi trường địa chỉ theo đúng quy ước của chính Online Boutique (*_SERVICE_ADDR).
+_TEST_CARD = {"credit_card_number": "4432-8015-6152-0454", "credit_card_cvv": 672,
+              "credit_card_expiration_year": 2039, "credit_card_expiration_month": 1}
+_ADDRESS = {"street_address": "1600 Amphitheatre Parkway", "city": "Mountain View", "state": "CA",
+            "country": "United States", "zip_code": 94043}
+GRPC_BUSINESS_CALLS: dict[str, tuple[str, str, dict]] = {
+    # đích -> (biến môi trường địa chỉ, method đầy đủ, request JSON)
+    "productcatalogservice": ("PRODUCT_CATALOG_SERVICE_ADDR", "hipstershop.ProductCatalogService/ListProducts", {}),
+    "currencyservice": ("CURRENCY_SERVICE_ADDR", "hipstershop.CurrencyService/GetSupportedCurrencies", {}),
+    "cartservice": ("CART_SERVICE_ADDR", "hipstershop.CartService/GetCart", {"user_id": "batch-reporter"}),
+    "recommendationservice": ("RECOMMENDATION_SERVICE_ADDR", "hipstershop.RecommendationService/ListRecommendations",
+                              {"user_id": "batch-reporter", "product_ids": ["OLJCESPC7Z"]}),
+    "shippingservice": ("SHIPPING_SERVICE_ADDR", "hipstershop.ShippingService/GetQuote",
+                        {"address": _ADDRESS, "items": [{"product_id": "OLJCESPC7Z", "quantity": 1}]}),
+    "adservice": ("AD_SERVICE_ADDR", "hipstershop.AdService/GetAds", {"context_keys": ["kitchen"]}),
+    "paymentservice": ("PAYMENT_SERVICE_ADDR", "hipstershop.PaymentService/Charge",
+                       {"amount": {"currency_code": "USD", "units": 1}, "credit_card": _TEST_CARD}),
+    "emailservice": ("EMAIL_SERVICE_ADDR", "hipstershop.EmailService/SendOrderConfirmation",
+                     {"email": "reports@example.com", "order": {"order_id": "batch-report"}}),
+    "checkoutservice": ("CHECKOUT_SERVICE_ADDR", "hipstershop.CheckoutService/PlaceOrder",
+                        {"user_id": "batch-reporter", "user_currency": "USD", "address": _ADDRESS,
+                         "email": "reports@example.com", "credit_card": _TEST_CARD}),
+}
+_BUSINESS_KINDS = (ScenarioKind.STRONG_HIDDEN, ScenarioKind.SPARSE_HIDDEN)
+
+
+def _uses_business_grpc(edge: InjectedEdge) -> bool:
+    return (edge.kind in _BUSINESS_KINDS and edge.requests_per_minute is not None
+            and edge.destination_port_protocol[1] == "GRPC" and edge.destination in GRPC_BUSINESS_CALLS)
+
+
+def sparse_active_dates(edge: InjectedEdge, window_start: str, window_days: int = 7) -> list[str]:
+    """Chọn `active_days_out_of_window` ngày lịch (UTC) trong cửa sổ [window_start,
+    window_start + window_days) cho 1 cạnh SPARSE_HIDDEN -- tất định theo cặp
+    (source, destination), KHÔNG dùng rng của scenario_pool (giữ nguyên chuỗi rút cặp)."""
+    import hashlib
+    from datetime import date, timedelta
+
+    start = date.fromisoformat(window_start)
+    n = max(1, min(int(edge.active_days_out_of_window or 1), window_days))
+    seed = int(hashlib.sha256(f"{edge.source}->{edge.destination}".encode()).hexdigest(), 16)
+    offsets = list(range(window_days))
+    picked = []
+    while len(picked) < n:
+        idx = seed % len(offsets)
+        picked.append(offsets.pop(idx))
+        seed //= 7
+    return [(start + timedelta(days=o)).isoformat() for o in sorted(picked)]
 
 
 def _call_cmd(edge: InjectedEdge, namespace: str) -> str:
@@ -89,6 +157,10 @@ def _call_cmd(edge: InjectedEdge, namespace: str) -> str:
     host = f"{edge.destination}.{namespace}.svc.cluster.local"
     if protocol == "HTTP":
         return f"curl -s -o /dev/null -m 5 'http://{host}:{port}{edge.path or '/'}'"
+    if protocol == "GRPC" and _uses_business_grpc(edge):
+        addr_env, method, _ = GRPC_BUSINESS_CALLS[edge.destination]
+        return (f'grpcurl -plaintext -connect-timeout 5 -import-path /protos -proto demo.proto '
+                f'-d "$GRPC_REQUEST" "${addr_env}" {method}')
     if protocol == "GRPC":
         return f"grpcurl -plaintext -connect-timeout 5 {host}:{port} list"
     return f"nc -z -w2 {host} {port}"
@@ -114,35 +186,44 @@ def _image_for_protocol(protocol: str) -> str:
     }[protocol]
 
 
-def _harness_deployment_yaml(edge: InjectedEdge, namespace: str, trial_id: str, service_account_hint: str) -> str:
+def _harness_deployment_yaml(edge: InjectedEdge, namespace: str, trial_id: str, service_account_hint: str,
+                             sparse_window_start: Optional[str] = None, window_days: int = 7) -> str:
     name = _k8s_safe_name(f"harness-{edge.kind.value.lower().replace('_', '-')}-{edge.source}-{edge.destination}")
     has_traffic = edge.requests_per_minute is not None
     interval_seconds = max(1, 60 // edge.requests_per_minute) if has_traffic else 3600
+    is_sparse = has_traffic and edge.kind == ScenarioKind.SPARSE_HIDDEN
+    active_dates = ",".join(sparse_active_dates(edge, sparse_window_start, window_days)) if (
+        is_sparse and sparse_window_start
+    ) else ""
     active_days = ",".join(str(d) for d in range(edge.active_days_out_of_window)) if (
-        has_traffic and edge.kind == ScenarioKind.SPARSE_HIDDEN
+        is_sparse and not active_dates
     ) else ""
     # STRONG_HIDDEN/NOISE_* : active mọi ngày trong cửa sổ -> active_days rỗng (luôn gọi)
 
     port, protocol = edge.destination_port_protocol
     image = _image_for_protocol(protocol) if has_traffic else "busybox:1.36"
     call_cmd = _call_cmd(edge, namespace) if has_traffic else "true"
+    business = has_traffic and _uses_business_grpc(edge)
 
-    env_lines = [
-        "        - name: ACTIVE_DAYS",
-        f'          value: "{active_days}"',
-        "        - name: INTERVAL_SECONDS",
-        f'          value: "{interval_seconds}"',
-        "        - name: CALL_CMD",
-        f'          value: "{call_cmd}"',
-    ]
+    def _env(name_: str, value: str) -> list[str]:
+        return [f"        - name: {name_}", f"          value: {json.dumps(value, ensure_ascii=False)}"]
+
+    env_lines = []
+    if active_dates:
+        env_lines += _env("ACTIVE_DATES", active_dates)
+    else:
+        env_lines += _env("ACTIVE_DAYS", active_days)
+    env_lines += _env("INTERVAL_SECONDS", str(interval_seconds))
+    if business:
+        addr_env, _, request = GRPC_BUSINESS_CALLS[edge.destination]
+        env_lines += _env(addr_env, f"{edge.destination}:{port}")
+        env_lines += _env("GRPC_REQUEST", json.dumps(request, separators=(",", ":")))
+    env_lines += _env("CALL_CMD", call_cmd)
     if edge.declare_config_reference:
         target = edge.destination if edge.config_reference_resolvable else f"{edge.destination}-nonexistent"
         # Biến môi trường đại diện cho "config evidence" mà config_collector.py sẽ đọc
         # được (mục 4 CONFIG_EVIDENCE_COLLECTOR.md, cấp 3 - chỉ tên trần).
-        env_lines += [
-            "        - name: HIDDEN_DEP_TARGET",
-            f'          value: "{target}"',
-        ]
+        env_lines += _env("HIDDEN_DEP_TARGET", target)
 
     command = (
         "sleep infinity" if not has_traffic
@@ -153,13 +234,20 @@ def _harness_deployment_yaml(edge: InjectedEdge, namespace: str, trial_id: str, 
         else 'command: ["sh", "/scripts/wrapper.sh"]'
     )
 
+    proto_mount = """
+        - name: harness-protos
+          mountPath: /protos""" if business else ""
+    proto_volume = """
+      - name: harness-protos
+        configMap:
+          name: harness-protos""" if business else ""
     volume_mount = (
         ""
         if not has_traffic
-        else """
+        else f"""
         volumeMounts:
         - name: wrapper-script
-          mountPath: /scripts
+          mountPath: /scripts{proto_mount}
 """
     )
     volume_block = (
@@ -170,7 +258,7 @@ def _harness_deployment_yaml(edge: InjectedEdge, namespace: str, trial_id: str, 
       - name: wrapper-script
         configMap:
           name: harness-wrapper-script
-          defaultMode: 0755
+          defaultMode: 0755{proto_volume}
 """
     )
 
@@ -237,7 +325,8 @@ data:
     return "---".join(parts)
 
 
-def render_shared(scenario: SharedInfraScenario, service_account_hint: str = "{source}") -> str:
+def render_shared(scenario: SharedInfraScenario, service_account_hint: str = "{source}",
+                  sparse_window_start: Optional[str] = None, window_days: int = 7) -> str:
     """Render YAML cho kiến trúc "dùng chung hạ tầng" (namespace K8s DUY NHẤT cho toàn bộ
     N virtual trial) — xem docstring `scenario_pool.SharedInfraScenario`. KHÁC `render()`:
     không render Online Boutique (script deploy áp riêng, 1 lần, xem `05_deploy_shared.sh`)
@@ -271,6 +360,7 @@ data:
             _harness_deployment_yaml(
                 shared_edge.edge, scenario.namespace, trial_id=scenario.namespace,
                 service_account_hint=service_account_hint,
+                sparse_window_start=sparse_window_start, window_days=window_days,
             )
         )
     return "---".join(parts)
@@ -299,6 +389,12 @@ def main() -> None:
     parser.add_argument("--n-trials", type=int, default=15, help="[--shared] Số virtual trial.")
     parser.add_argument("--base-seed", type=int, default=20260101, help="[--shared] Seed sinh toàn bộ N virtual trial.")
     parser.add_argument(
+        "--sparse-window-start", default=None, metavar="YYYY-MM-DD",
+        help="[--shared] Ngày đầu cửa sổ đánh giá (UTC). Có tham số này thì cạnh SPARSE_HIDDEN "
+        "chạy theo NGÀY LỊCH (ACTIVE_DATES) trong cửa sổ thay vì đếm từ lúc pod start.",
+    )
+    parser.add_argument("--window-days", type=int, default=7, help="[--shared] Số ngày cửa sổ (đi cùng --sparse-window-start).")
+    parser.add_argument(
         "--dump-ground-truth-dir", metavar="DIR",
         help="[--shared] Ghi 1 file ground_truth JSON MỖI virtual trial vào thư mục này "
         "(tên file <virtual_trial_id>.json — CÙNG định dạng/tên với --dump-ground-truth "
@@ -315,7 +411,8 @@ def main() -> None:
 
     if args.shared:
         scenario = generate_shared_trials(n_trials=args.n_trials, base_seed=args.base_seed, namespace=args.namespace)
-        print(render_shared(scenario, service_account_hint=args.service_account))
+        print(render_shared(scenario, service_account_hint=args.service_account,
+                            sparse_window_start=args.sparse_window_start, window_days=args.window_days))
 
         if args.dump_ground_truth_dir:
             out_dir = Path(args.dump_ground_truth_dir)

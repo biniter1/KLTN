@@ -16,7 +16,7 @@ API = ORCH / "api"
 _WRITE_RE = re.compile(r"\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM|ALTER\s+TABLE|DROP\s+TABLE)\s+(\w+)")
 
 BATCH_OWNED = {"dependency_evidence", "pipeline_run_log", "collection_quality_log", "config_raw_items",
-               "config_extractions", "config_evidence", "llm_extraction_cache", "agent_rounds", "trace_log"}
+               "config_extractions", "config_evidence", "llm_extraction_cache", "agent_rounds", "trace_log", "llm_usage"}
 API_OWNED = {"human_decisions", "agent_tool_call_log"}
 
 
