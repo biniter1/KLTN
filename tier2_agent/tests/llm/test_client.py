@@ -166,3 +166,52 @@ def test_usage_recorder_ignores_clients_without_usage():
     rec.begin_session("s")
     rec.generate(_ctx(), [])
     assert storage.get_llm_usage("s") == []
+
+
+# --- OpenAIModelClient (fake SDK, không gọi API thật) ---
+from types import SimpleNamespace as _NS
+
+
+class _FakeOpenAI:
+    def __init__(self, response):
+        self.last_kwargs = None
+        outer = self
+
+        class _Completions:
+            def create(self, **kwargs):
+                outer.last_kwargs = kwargs
+                return response
+
+        self.chat = _NS(completions=_Completions())
+
+
+def _openai_response(tool_calls, usage=None):
+    return _NS(model="gpt-test-2026", usage=usage,
+               choices=[_NS(message=_NS(tool_calls=tool_calls))])
+
+
+def test_openai_client_forces_function_and_parses_arguments():
+    from tier2_agent.llm.client import OpenAIModelClient
+
+    call = _NS(function=_NS(name="submit_model_output", arguments='{"reasoning": "r", "action": "conclude"}'))
+    usage = _NS(prompt_tokens=1200, completion_tokens=90, prompt_tokens_details=_NS(cached_tokens=200))
+    fake = _FakeOpenAI(_openai_response([call], usage))
+    client = OpenAIModelClient(api_key="unused", model="gpt-test", client=fake)
+    assert client.generate(_ctx(), ["read_source_code"]) == {"reasoning": "r", "action": "conclude"}
+    kw = fake.last_kwargs
+    assert kw["model"] == "gpt-test"
+    assert kw["tool_choice"] == {"type": "function", "function": {"name": "submit_model_output"}}
+    assert kw["tools"][0]["function"]["parameters"]["type"] == "object"
+    assert kw["messages"][0]["role"] == "system"
+    assert client.last_usage == {"model": "gpt-test-2026", "input_tokens": 1000, "output_tokens": 90,
+                                 "cache_creation_input_tokens": 0, "cache_read_input_tokens": 200}
+
+
+def test_openai_client_raises_without_tool_call_and_requires_model():
+    from tier2_agent.llm.client import OpenAIModelClient
+
+    client = OpenAIModelClient(api_key="unused", model="gpt-test", client=_FakeOpenAI(_openai_response(None)))
+    with pytest.raises(ValueError):
+        client.generate(_ctx(), [])
+    with pytest.raises(ValueError):
+        OpenAIModelClient(api_key="unused", model="", client=object())

@@ -120,6 +120,33 @@ def service_dirs_from_checkout(source_root: Path) -> dict:
     return {svc: str(root / "src" / svc) for svc in ONLINE_BOUTIQUE_SERVICES if (root / "src" / svc).is_dir()}
 
 
+def model_client_from_env():
+    """Chọn nhà cung cấp LLM cho Tier 2 theo env: `TIER2_PROVIDER` = anthropic (mặc định) |
+    openai; `TIER2_MODEL` = tên model (bắt buộc với openai). Key đọc từ ANTHROPIC_API_KEY /
+    OPENAI_API_KEY — chỉ nằm trong env của tiến trình Orchestrator."""
+    provider = (os.environ.get("TIER2_PROVIDER") or "anthropic").strip().lower()
+    model = os.environ.get("TIER2_MODEL")
+    if provider == "openai":
+        from tier2_agent.llm.client import OpenAIModelClient
+
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("TIER2_PROVIDER=openai nhưng thiếu OPENAI_API_KEY — tự `export "
+                               "OPENAI_API_KEY=\"...\"` trong shell")
+        if not model:
+            raise RuntimeError("TIER2_PROVIDER=openai cần đặt rõ TIER2_MODEL (vd gpt-4o)")
+        return OpenAIModelClient(api_key=api_key, model=model)
+    if provider != "anthropic":
+        raise RuntimeError(f"TIER2_PROVIDER không hỗ trợ: {provider!r} (anthropic | openai)")
+    from tier2_agent.llm.client import AnthropicModelClient
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("thiếu biến môi trường ANTHROPIC_API_KEY cho Tier 2 — tự `export "
+                           "ANTHROPIC_API_KEY=\"...\"` trong shell, đặt TIER2_PROVIDER=openai, hoặc chạy với --skip-tier2")
+    return AnthropicModelClient(api_key=api_key, model=model) if model else AnthropicModelClient(api_key=api_key)
+
+
 def build_brain_runner(
     *,
     db_path: Path,
@@ -159,14 +186,7 @@ def build_brain_runner(
             PrometheusTrafficWindowProvider(prometheus_client, namespaces, now=now)),
     })
     if model_client is None:
-        from tier2_agent.llm.client import AnthropicModelClient
-
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError("thiếu biến môi trường ANTHROPIC_API_KEY cho Tier 2 — tự `export "
-                               "ANTHROPIC_API_KEY=\"...\"` trong shell, hoặc chạy với --skip-tier2")
-        model = os.environ.get("TIER2_MODEL")
-        model_client = AnthropicModelClient(api_key=api_key, model=model) if model else AnthropicModelClient(api_key=api_key)
+        model_client = model_client_from_env()
     from tier2_agent.llm.client import UsageRecordingModelClient
 
     storage = Storage(str(db_path))

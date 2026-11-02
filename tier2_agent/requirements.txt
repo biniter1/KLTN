@@ -1,3 +1,4 @@
 anthropic>=0.40.0
 jsonschema>=4.20.0
 requests>=2.31.0
+openai>=1.0             # chỉ khi TIER2_PROVIDER=openai

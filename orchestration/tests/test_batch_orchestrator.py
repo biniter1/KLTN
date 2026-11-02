@@ -369,3 +369,31 @@ def test_cli_batch_accepts_end_time():
 
     args = build_parser().parse_args(["--run-id", "trial-01", "--end-time", "2026-10-26T23:59:59Z"])
     assert _parse_dt(args.end_time).isoformat() == "2026-10-26T23:59:59+00:00"
+
+
+def test_model_client_from_env_selects_provider(monkeypatch):
+    import pytest
+    from orchestration.wiring import model_client_from_env
+    from tier2_agent.llm.client import AnthropicModelClient, OpenAIModelClient
+
+    import sys
+    import types
+
+    fake_sdk = types.ModuleType("openai")
+    fake_sdk.OpenAI = lambda api_key: object()   # không gọi SDK/API thật
+    monkeypatch.setitem(sys.modules, "openai", fake_sdk)
+    monkeypatch.setenv("TIER2_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-real")
+    monkeypatch.delenv("TIER2_MODEL", raising=False)
+    with pytest.raises(RuntimeError):
+        model_client_from_env()
+    monkeypatch.setenv("TIER2_MODEL", "gpt-test")
+    assert isinstance(model_client_from_env(), OpenAIModelClient)
+    monkeypatch.setenv("TIER2_PROVIDER", "bogus")
+    with pytest.raises(RuntimeError):
+        model_client_from_env()
+    monkeypatch.delenv("TIER2_PROVIDER")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(RuntimeError):
+        model_client_from_env()
+    assert AnthropicModelClient  # mặc định vẫn là anthropic
