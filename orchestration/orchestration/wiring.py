@@ -156,6 +156,7 @@ def build_brain_runner(
     namespaces: Optional[list] = None,
     model_client=None,
     now=None,
+    traffic_provider=None,
 ) -> BrainTier2Runner:  # pragma: no cover - phần wiring thật, mỗi khối đã có test riêng ở tier2_agent/
     from tier2_agent.agent_runtime import AgentRuntime
     from tier2_agent.brain import Brain
@@ -182,8 +183,10 @@ def build_brain_runner(
         "read_source_code": make_source_code_tool(service_dirs, stale_threshold_days=config.stale_threshold_days),
         "read_internal_docs": make_internal_docs_tool(service_dirs, stale_threshold_days=config.stale_threshold_days),
         "read_pr_descriptions": make_pr_descriptions_tool(gatekeeper, service_dirs),
+        # traffic_provider: thay Prometheus bằng nguồn khác (vd hồ sơ traffic cố định của
+        # benchmark bằng chứng code, infra/scripts/12_tier2_code_benchmark.py).
         "read_extended_traffic_window": make_traffic_window_tool(
-            PrometheusTrafficWindowProvider(prometheus_client, namespaces, now=now)),
+            traffic_provider or PrometheusTrafficWindowProvider(prometheus_client, namespaces, now=now)),
     })
     if model_client is None:
         model_client = model_client_from_env()
