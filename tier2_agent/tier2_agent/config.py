@@ -40,6 +40,10 @@ class Tier2Config:
     # (so với ngày snapshot traffic của Tier 1) bị đánh dấu stale=true ---
     stale_threshold_days: int = 365
 
+    # --- F6 (05/11): cửa sổ traffic Tầng 1 đã dùng; read_extended_traffic_window phải
+    # dùng window LỚN HƠN số này (gọi lại đúng 7 ngày chỉ trả lại y dữ liệu Tầng 1) ---
+    tier1_window_days: int = 7
+
     @property
     def token_budget(self) -> int:
         return int(self.context_window_tokens * self.normalize_token_budget_ratio)

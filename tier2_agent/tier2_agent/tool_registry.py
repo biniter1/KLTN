@@ -177,9 +177,11 @@ class ToolRegistry:
                     "edge không khớp identity_key của cạnh đang xác minh trong phiên này"
                 )
             window = tool_input.get("window")
-            if not isinstance(window, int) or isinstance(window, bool) or not (1 <= window <= _MAX_WINDOW_DAYS):
+            min_window = self._config.tier1_window_days + 1
+            if not isinstance(window, int) or isinstance(window, bool) or not (min_window <= window <= _MAX_WINDOW_DAYS):
                 raise ToolInputRejected(
-                    f"window phải là số nguyên trong khoảng [1, {_MAX_WINDOW_DAYS}]"
+                    f"window phải là số nguyên trong khoảng [{min_window}, {_MAX_WINDOW_DAYS}] "
+                    f"(lớn hơn cửa sổ {self._config.tier1_window_days} ngày Tầng 1 đã dùng)"
                 )
         else:  # pragma: no cover - defensive, _DEFINITIONS đã cover hết ToolName
             raise UnknownToolError(tool_name)

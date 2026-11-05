@@ -56,6 +56,7 @@ class AnthropicModelClient:
         message = self._client.messages.create(
             model=self._model,
             max_tokens=4096,
+            temperature=0,  # F4 (05/11): giảm dao động giữa các lần chạy cùng đầu vào
             system=SYSTEM_PROMPT + "\n\n" + context.system_instruction,
             tools=[submit_tool],
             tool_choice={"type": "tool", "name": "submit_model_output"},
@@ -102,6 +103,7 @@ class OpenAIModelClient:
         response = self._client.chat.completions.create(
             model=self._model,
             max_completion_tokens=4096,
+            temperature=0,  # F4 (05/11): benchmark 04/11 — 22/30 case đổi kết quả giữa 3 lần chạy
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + context.system_instruction},
                 {"role": "user", "content": _user_payload(context)},

@@ -28,8 +28,10 @@ _NEW_HYPOTHESIS_SCHEMA = {
     "properties": {
         "id": {"type": "string"},
         "statement": {"type": "string"},
+        # F1 (05/11): chiều của hypothesis — pro = cạnh LÀ dependency thật, con = KHÔNG phải.
+        "polarity": {"type": "string", "enum": ["pro", "con"]},
     },
-    "required": ["id", "statement"],
+    "required": ["id", "statement", "polarity"],
     "additionalProperties": False,
 }
 

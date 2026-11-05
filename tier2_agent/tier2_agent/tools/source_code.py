@@ -9,12 +9,36 @@ Boutique + service tự cấy).
 from __future__ import annotations
 
 import os
+import re
 import time
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Tuple
 
 from ..exceptions import ToolExecutionError
 from ..tool_registry import ToolResult
 from ._shared import extract_pr_numbers, grep_list_args, is_stale, last_commit_epoch
+
+
+# F3 (05/11): file SINH TỰ ĐỘNG từ .proto (và chính file .proto) chỉ chứa định nghĩa
+# stub/client/message cho MỌI service trong hệ thống -- không phải bằng chứng service
+# nguồn thật sự gọi đích. Benchmark 04/11: 8 phiên "support" chỉ dựa vào các file này, và
+# chúng còn chiếm hết trần 4000 ký tự output khiến code thật bị cắt mất.
+GENERATED_FILE_RE = re.compile(
+    r"(^|/)(genproto|generated)/|\.pb\.go$|_pb2(_grpc)?\.pyi?$|\.proto$|\.pb\.(cc|h)$|_grpc_pb\.js$|_pb\.js$"
+)
+
+
+def filter_generated(grep_output: str) -> Tuple[str, int, int]:
+    """Bỏ các dòng grep (`path:line:text`) thuộc file sinh tự động.
+    Trả (output còn lại, số dòng bị bỏ, số file bị bỏ)."""
+    kept, dropped_files, dropped = [], set(), 0
+    for line in grep_output.splitlines():
+        path = line.split(":", 1)[0]
+        if GENERATED_FILE_RE.search(path.replace("\\", "/")):
+            dropped += 1
+            dropped_files.add(path)
+        else:
+            kept.append(line)
+    return "\n".join(kept), dropped, len(dropped_files)
 
 
 def make_source_code_tool(
@@ -37,13 +61,18 @@ def make_source_code_tool(
             raise ToolExecutionError(f"Thư mục source không tồn tại: {root!r}")
 
         output = grep_list_args(keyword, root, timeout=timeout)
+        output, dropped_lines, dropped_files = filter_generated(output)
+        note = (f"\n[đã bỏ {dropped_lines} dòng khớp trong {dropped_files} file sinh tự động từ .proto "
+                f"— không phải bằng chứng gọi]" if dropped_lines else "")
         if not output:
             return ToolResult(
                 raw_output=(
                     f"Không tìm thấy dòng nào khớp keyword={keyword!r} trong "
-                    f"source code của {service!r} (bao gồm Dockerfile)."
+                    f"source code của {service!r} (bao gồm Dockerfile), ngoài file sinh tự động."
+                    + note
                 )
             )
+        output = output + note
 
         stale = is_stale(
             root,

@@ -91,6 +91,7 @@ class Brain:
                 escalation_reason=escalation.escalation_reason,
                 hypothesis_cap_reached=len(hypotheses) >= self._config.max_open_hypotheses,
                 system_notices=pending_notices,
+                tier1_window_days=self._config.tier1_window_days,
             )
             pending_notices = []
 
@@ -143,7 +144,7 @@ class Brain:
                         f"hypothesis {nh.id!r} bị từ chối — phải kèm tool_calls trong CÙNG vòng mở nó (mục 7.1)"
                     )
                     continue
-                hypotheses[nh.id] = Hypothesis(id=nh.id, statement=nh.statement)
+                hypotheses[nh.id] = Hypothesis(id=nh.id, statement=nh.statement, polarity=nh.polarity)
 
             dispatched_new_count = 0
             attempted_count = 0  # tool thật sự được GỌI vòng này (kể cả lỗi) — xem ghi chú Observer bên dưới
@@ -271,7 +272,8 @@ class Brain:
             )
             decision = observer_check(observer_inputs, self._config)
 
-            round_result = format_result(state, views2, iteration, decision, model_output)
+            round_result = format_result(state, views2, iteration, decision, model_output,
+                                         tier1_observed=escalation.tier1_observed)
 
             self._storage.append_agent_round(
                 run_id,

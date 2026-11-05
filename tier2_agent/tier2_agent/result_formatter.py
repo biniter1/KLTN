@@ -20,9 +20,11 @@ def format_result(
     iteration: int,
     decision: ObserverDecision,
     model_output: ModelOutput,
+    *,
+    tier1_observed: bool = False,
 ) -> RoundResult:
     hyp_list = list(views.values())
-    final_status, original_status = derive_final_statuses(hyp_list)
+    final_status, original_status = derive_final_statuses(hyp_list, tier1_observed=tier1_observed)
 
     return RoundResult(
         run_id=state.run_id,

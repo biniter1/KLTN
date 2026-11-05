@@ -89,17 +89,28 @@ def test_final_status_all_insufficient():
     )
 
 
-def test_final_status_confident_requires_structured_evidence():
-    views = [
-        _view(
-            "H1",
-            HypothesisStatus.SUPPORTED,
-            [_ev(tool_name="read_extended_traffic_window", stance="support")],
-        )
-    ]
-    final, original = derive_final_statuses(views)
-    assert final == FinalStatus.CONFIDENT.value
-    assert original == FinalStatus.CONFIDENT.value
+def test_final_status_confident_requires_runtime_and_static_sources():
+    """F2 (05/11): traffic một mình (không có code/docs/PR) -> NEEDS_MONITORING; đủ hai -> CONFIDENT."""
+    traffic_only = [_view("H1", HypothesisStatus.SUPPORTED,
+                          [_ev(tool_name="read_extended_traffic_window", stance="support")])]
+    assert derive_final_statuses(traffic_only) == (FinalStatus.NEEDS_MONITORING.value, FinalStatus.CONFIDENT.value)
+    both = [_view("H1", HypothesisStatus.SUPPORTED,
+                  [_ev(tool_name="read_extended_traffic_window", stance="support"),
+                   _ev(evidence_id="E2", tool_name="read_source_code", stance="support")])]
+    assert derive_final_statuses(both) == (FinalStatus.CONFIDENT.value, FinalStatus.CONFIDENT.value)
+    code_only = [_view("H1", HypothesisStatus.SUPPORTED, [_ev(tool_name="read_source_code", stance="support")])]
+    assert derive_final_statuses(code_only, tier1_observed=True)[0] == FinalStatus.CONFIDENT.value
+    assert derive_final_statuses(code_only, tier1_observed=False)[0] == FinalStatus.NEEDS_MONITORING.value
+
+
+def test_final_status_polarity():
+    """F1 (05/11): con được ủng hộ không xác nhận cạnh; pro + con cùng được ủng hộ -> CONFLICTING."""
+    con = _view("H2", HypothesisStatus.SUPPORTED, [_ev(evidence_id="E9", tool_name="read_extended_traffic_window",
+                                                       stance="support")])
+    con.polarity = "con"
+    assert derive_final_statuses([con], tier1_observed=True)[0] == FinalStatus.INSUFFICIENT_BASIS.value
+    pro = _view("H1", HypothesisStatus.SUPPORTED, [_ev(tool_name="read_source_code", stance="support")])
+    assert derive_final_statuses([pro, con], tier1_observed=True)[0] == FinalStatus.CONFLICTING_EVIDENCE.value
 
 
 def test_final_status_downgrades_to_needs_monitoring_without_structured_evidence():

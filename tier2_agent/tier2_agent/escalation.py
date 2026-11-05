@@ -84,6 +84,15 @@ class EscalationRecord:
         )
 
     @property
+    def tier1_observed(self) -> bool:
+        """Tầng 1 đã thấy traffic THẬT của cạnh trong cửa sổ K ngày (count > 0) — nguồn
+        runtime cho corroboration hai nguồn (F2, 05/11)."""
+        try:
+            return float(self.raw.get("count") or 0) > 0
+        except (TypeError, ValueError):
+            return False
+
+    @property
     def identity_key(self) -> str:
         """identity_key ổn định (TIER1_DESIGN.md mục 3) — dùng làm
         `edge_identity_key` của State (TIER2_DESIGN.md mục 5)."""

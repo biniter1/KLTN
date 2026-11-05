@@ -272,7 +272,7 @@ def test_real_brain_writes_rounds_into_same_db(make_settings, make_deps, infra_f
     def script(ctx, tool_names):
         if not ctx.hypotheses:
             return {"reasoning": "kiểm cửa sổ dài hơn", "action": "call_tool", "stance_updates": [],
-                    "new_hypotheses": [{"id": "H1", "statement": "chu kỳ dài"}],
+                    "new_hypotheses": [{"id": "H1", "statement": "chu kỳ dài", "polarity": "pro"}],
                     "tool_calls": [{"tool_name": "read_extended_traffic_window",
                                     "tool_input": {"edge": _edge[0], "window": 14},
                                     "hypothesis_id": "H1"}]}

@@ -40,6 +40,16 @@ class Stance(str, Enum):
     CONTRADICT = "contradict"
 
 
+class Polarity(str, Enum):
+    """Chiều của hypothesis (sửa 05/11, F1): `pro` = khẳng định cạnh LÀ dependency thật,
+    `con` = khẳng định cạnh KHÔNG phải dependency (traffic test/nhất thời, chỉ có stub sinh
+    từ proto...). Trước đây hypothesis không có chiều nên 1 hypothesis phản bác được ủng
+    hộ cũng bị tính là xác nhận cạnh (benchmark 04/11: cả 4 FP CONFIDENT do lỗi này)."""
+
+    PRO = "pro"
+    CON = "con"
+
+
 class ToolRowStatus(str, Enum):
     OK = "OK"
     ERROR = "ERROR"
@@ -67,6 +77,12 @@ class ToolName(str, Enum):
 # Tool duy nhất trả về bằng chứng "cấu trúc" (số liệu traffic của Tier 1),
 # 3 tool còn lại trả text phi cấu trúc. Dùng cho corroboration rule (mục 7.4).
 STRUCTURED_TOOLS = frozenset({ToolName.READ_EXTENDED_TRAFFIC_WINDOW.value})
+# Nguồn TĨNH (code/tài liệu/PR) — corroboration hai nguồn độc lập (sửa 05/11, F2).
+STATIC_TOOLS = frozenset({
+    ToolName.READ_SOURCE_CODE.value,
+    ToolName.READ_INTERNAL_DOCS.value,
+    ToolName.READ_PR_DESCRIPTIONS.value,
+})
 
 # Thứ hạng độ tin cậy ORDINAL (mục 7.5) — số nhỏ hơn = đáng tin hơn.
 EVIDENCE_RELIABILITY_RANK = {
@@ -98,6 +114,7 @@ class Hypothesis:
     id: str
     statement: str
     status: HypothesisStatus = HypothesisStatus.PROPOSED
+    polarity: str = Polarity.PRO.value
 
 
 @dataclass
@@ -129,14 +146,22 @@ class HypothesisView:
     statement: str
     status: HypothesisStatus
     evidence: list = field(default_factory=list)  # list[EvidenceRow]
+    polarity: str = Polarity.PRO.value
 
-    @property
-    def has_structured_support(self) -> bool:
+    def _has_support_from(self, tools) -> bool:
         return any(
-            e.tool_name in STRUCTURED_TOOLS and e.stance == Stance.SUPPORT.value
+            e.tool_name in tools and e.stance == Stance.SUPPORT.value
             for e in self.evidence
             if e.status == ToolRowStatus.OK.value
         )
+
+    @property
+    def has_structured_support(self) -> bool:
+        return self._has_support_from(STRUCTURED_TOOLS)
+
+    @property
+    def has_static_support(self) -> bool:
+        return self._has_support_from(STATIC_TOOLS)
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +179,7 @@ class StanceUpdate:
 class NewHypothesis:
     id: str
     statement: str
+    polarity: str = Polarity.PRO.value
 
 
 @dataclass

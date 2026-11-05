@@ -20,6 +20,7 @@ from .models import (
     Hypothesis,
     HypothesisStatus,
     HypothesisView,
+    Polarity,
     STRUCTURED_TOOLS,
     Stance,
     ToolRowStatus,
@@ -65,14 +66,27 @@ def distinct_evidence_sources(evidence: List[EvidenceRow]) -> int:
 
 def derive_final_statuses(
     hypotheses: List[HypothesisView],
+    *,
+    tier1_observed: bool = False,
 ) -> Tuple[str, str]:
-    """(final_status, original_agent_status) theo mục 7.4.
+    """(final_status, original_agent_status) theo mục 7.4 — bản sửa 05/11 (F1 + F2).
 
-    `original_agent_status` = trạng thái sẽ có nếu KHÔNG áp luật corroboration
-    (mục 11.3: "tier2_original_status — trước khi bị corroboration hạ cấp,
-    nếu có"). Model Output (mục 6) không có field tự báo status riêng, nên
-    "trước khi hạ cấp" chính là kết quả naive trước bước gạn lọc bằng chứng
-    cấu trúc — xem README phần diễn giải.
+    F1 — hypothesis có chiều (`polarity`):
+      * pro được ủng hộ + con được ủng hộ -> CONFLICTING_EVIDENCE
+      * chỉ con được ủng hộ (cạnh bị bác)  -> INSUFFICIENT_BASIS (không xác nhận cạnh)
+      * chỉ pro được ủng hộ                -> ứng viên CONFIDENT, xét corroboration
+      Trước đây MỌI hypothesis SUPPORTED đều tính là xác nhận cạnh, kể cả hypothesis
+      phản bác ("traffic chỉ nhất thời") -> FP CONFIDENT (benchmark 04/11).
+
+    F2 — corroboration = HAI NGUỒN ĐỘC LẬP cho cùng kết luận "cạnh là dependency":
+      * nguồn runtime: Tầng 1 đã thấy traffic thật (`tier1_observed`, count>0) HOẶC
+        read_extended_traffic_window được gán support trong 1 hypothesis pro;
+      * nguồn tĩnh: code/tài liệu/PR được gán support trong 1 hypothesis pro.
+      Đủ cả hai -> CONFIDENT; thiếu một -> NEEDS_MONITORING. Bản cũ bắt buộc bằng
+      chứng traffic, mâu thuẫn với chính nhiệm vụ của Tầng 2 (cạnh traffic THƯA): 26/45
+      phiên dương tìm đúng code thật bị hạ xuống NEEDS_MONITORING.
+
+    `original_agent_status` = trạng thái trước bước corroboration (mục 11.3).
     """
 
     if not hypotheses:
@@ -81,16 +95,20 @@ def derive_final_statuses(
     if any(h.status == HypothesisStatus.CONFLICTED for h in hypotheses):
         return FinalStatus.CONFLICTING_EVIDENCE.value, FinalStatus.CONFLICTING_EVIDENCE.value
 
-    if all(h.status == HypothesisStatus.INSUFFICIENT for h in hypotheses):
-        return FinalStatus.INSUFFICIENT_BASIS.value, FinalStatus.INSUFFICIENT_BASIS.value
-
     supported = [h for h in hypotheses if h.status == HypothesisStatus.SUPPORTED]
-    if supported:
+    pro = [h for h in supported if h.polarity != Polarity.CON.value]
+    con = [h for h in supported if h.polarity == Polarity.CON.value]
+
+    if pro and con:
+        return FinalStatus.CONFLICTING_EVIDENCE.value, FinalStatus.CONFLICTING_EVIDENCE.value
+    if pro:
         original = FinalStatus.CONFIDENT.value
-        if any(h.has_structured_support for h in supported):
+        runtime = tier1_observed or any(h.has_structured_support for h in pro)
+        static = any(h.has_static_support for h in pro)
+        if runtime and static:
             return FinalStatus.CONFIDENT.value, original
         return FinalStatus.NEEDS_MONITORING.value, original
 
-    # Còn lại: trộn PROPOSED/CONTRADICTED/INSUFFICIENT, không có SUPPORTED
-    # hay CONFLICTED nào -> chưa đủ cơ sở kết luận.
+    # Không có pro nào được ủng hộ (chỉ con được ủng hộ, hoặc trộn PROPOSED/CONTRADICTED/
+    # INSUFFICIENT) -> chưa đủ cơ sở xác nhận cạnh.
     return FinalStatus.INSUFFICIENT_BASIS.value, FinalStatus.INSUFFICIENT_BASIS.value

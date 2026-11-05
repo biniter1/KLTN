@@ -45,9 +45,13 @@ def test_benchmark_runs_end_to_end_with_scripted_model(tmp_path, monkeypatch):
     def script(ctx, tool_names):
         if not ctx.hypotheses:
             return {"reasoning": "đọc code", "action": "call_tool", "stance_updates": [],
-                    "new_hypotheses": [{"id": "H1", "statement": "có gọi"}],
+                    "new_hypotheses": [{"id": "H1", "statement": "có gọi", "polarity": "pro"}],
                     "tool_calls": [{"tool_name": "read_extended_traffic_window",
                                     "tool_input": {"edge": ctx.goal["identity_key"], "window": 14},
+                                    "hypothesis_id": "H1"},
+                                   {"tool_name": "read_source_code",
+                                    "tool_input": {"source_service": ctx.goal["source_canonical_service"],
+                                                   "keyword": "cart"},
                                     "hypothesis_id": "H1"}]}
         ev = ctx.hypotheses[0]["evidence"]
         return {"reasoning": "xong", "action": "conclude",
@@ -62,7 +66,8 @@ def test_benchmark_runs_end_to_end_with_scripted_model(tmp_path, monkeypatch):
                      "--label", "t", "--repeats", "1", "--only", "pos-09", "neg-01", "--out", str(out)]) == 0
     rep = json.loads(out.read_text())
     assert rep["summary"]["runs"] == 2 and rep["summary"]["runs_failed"] == 0, rep["results"]
-    # cùng traffic -> model giả xác nhận cả hai -> 1 TP + 1 FP: công thức tính đúng
+    # model giả gán support cho MỌI evidence (kể cả "không tìm thấy") -> 1 TP + 1 FP: kiểm công thức
     m = rep["summary"]["confident_only"]
     assert (m["tp"], m["fp"]) == (1, 1)
-    assert all(r["tools_used"] == {"read_extended_traffic_window": 1} for r in rep["results"])
+    assert all(r["tools_used"] == {"read_extended_traffic_window": 1, "read_source_code": 1}
+               for r in rep["results"])

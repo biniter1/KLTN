@@ -26,7 +26,7 @@ def test_schema_rejects_new_hypotheses_when_cap_reached_due_to_additional_proper
     payload = {
         "reasoning": "r",
         "action": "call_tool",
-        "new_hypotheses": [{"id": "H9", "statement": "s"}],
+        "new_hypotheses": [{"id": "H9", "statement": "s", "polarity": "pro"}],
     }
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(payload, schema)

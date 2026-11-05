@@ -62,28 +62,34 @@ def test_run_session_rejects_non_escalating_record(make_escalation, fast_config,
 
 
 def test_confident_status_from_structured_traffic_evidence(make_escalation, fast_config, storage, tool_registry_factory):
+    """F2 (05/11): CONFIDENT = hai nguồn độc lập — traffic (runtime) + code (tĩnh)."""
     registry, _gk, traffic = tool_registry_factory(traffic_provider=FakeTrafficProvider())
-    escalation = make_escalation()
+    escalation = make_escalation(count=0, dependency_status="NOT_OBSERVED", config_finding="NOT_FOUND")
 
     def round1(ctx, tool_names):
         assert ctx.hypotheses == []
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "Nghi dependency chạy theo chu kỳ dài hơn K ngày"}],
+            new_hypotheses=[{"id": "H1", "statement": "Nghi dependency chạy theo chu kỳ dài hơn K ngày", "polarity": "pro"}],
             tool_calls=[
                 {
                     "tool_name": "read_extended_traffic_window",
                     "tool_input": {"edge": escalation.identity_key, "window": 14},
                     "hypothesis_id": "H1",
-                }
+                },
+                {
+                    "tool_name": "read_source_code",
+                    "tool_input": {"source_service": "frontend", "keyword": "call_payment"},
+                    "hypothesis_id": "H1",
+                },
             ],
         )
 
     def round2(ctx, tool_names):
-        eid = _evidence_id(ctx, "H1")
+        ev = ctx.hypotheses[0]["evidence"]
         return model_output(
             action="conclude",
-            stance_updates=[{"evidence_id": eid, "stance": "support"}],
+            stance_updates=[{"evidence_id": e["evidence_id"], "stance": "support"} for e in ev],
         )
 
     brain = make_brain(fast_config, registry, storage, [round1, round2])
@@ -99,15 +105,16 @@ def test_confident_status_from_structured_traffic_evidence(make_escalation, fast
 
 
 def test_needs_monitoring_when_only_unstructured_support(make_escalation, fast_config, storage, tool_registry_factory):
+    """F2: chỉ có nguồn tĩnh, Tầng 1 KHÔNG thấy traffic (NOT_OBSERVED) -> thiếu nguồn runtime."""
     registry, _gk, _traffic = tool_registry_factory(
         pr_map={"frontend": [{"number": 1, "title": "t", "body": "b", "changed_files": []}]}
     )
-    escalation = make_escalation()
+    escalation = make_escalation(count=0, dependency_status="NOT_OBSERVED", config_finding="NOT_FOUND")
 
     def round1(ctx, tool_names):
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "Nghi dependency tạo động lúc runtime"}],
+            new_hypotheses=[{"id": "H1", "statement": "Nghi dependency tạo động lúc runtime", "polarity": "pro"}],
             tool_calls=[
                 {
                     "tool_name": "read_source_code",
@@ -135,7 +142,7 @@ def test_conflicting_evidence_when_hypothesis_has_both_stances(make_escalation, 
     def round1(ctx, tool_names):
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "Nghi dependency thật"}],
+            new_hypotheses=[{"id": "H1", "statement": "Nghi dependency thật", "polarity": "pro"}],
             tool_calls=[
                 {
                     "tool_name": "read_source_code",
@@ -175,7 +182,7 @@ def test_insufficient_basis_when_no_stance_ever_assigned(make_escalation, fast_c
     def round1(ctx, tool_names):
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "Nghi ngờ chưa rõ"}],
+            new_hypotheses=[{"id": "H1", "statement": "Nghi ngờ chưa rõ", "polarity": "pro"}],
             tool_calls=[
                 {
                     "tool_name": "read_internal_docs",
@@ -210,7 +217,7 @@ def test_stops_at_max_iterations(make_escalation, storage, tool_registry_factory
         def _handler(ctx, tool_names):
             return model_output(
                 action="call_tool",
-                new_hypotheses=[{"id": "H1", "statement": "s"}] if n == 1 else None,
+                new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}] if n == 1 else None,
                 tool_calls=[
                     {
                         "tool_name": "read_internal_docs",
@@ -244,7 +251,7 @@ def test_stops_when_tool_calls_are_deduped_to_nothing_new(make_escalation, fast_
 
     def round1(ctx, tool_names):
         return model_output(
-            action="call_tool", new_hypotheses=[{"id": "H1", "statement": "s"}], tool_calls=[same_call]
+            action="call_tool", new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}], tool_calls=[same_call]
         )
 
     def round2(ctx, tool_names):
@@ -269,7 +276,7 @@ def test_manual_abort_stops_even_mid_call_tool_action(make_escalation, fast_conf
         storage.set_manual_abort("run_abort", True)  # dashboard bấm nút giữa lúc Brain đang chạy
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "s"}],
+            new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}],
             tool_calls=[
                 {
                     "tool_name": "read_internal_docs",
@@ -300,7 +307,7 @@ def test_tool_error_blocked_after_2_consecutive_failures(make_escalation, fast_c
 
     def round1(ctx, tool_names):
         return model_output(
-            action="call_tool", new_hypotheses=[{"id": "H1", "statement": "s"}], tool_calls=[same_call]
+            action="call_tool", new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}], tool_calls=[same_call]
         )
 
     def round_retry(ctx, tool_names):
@@ -332,7 +339,7 @@ def test_tool_input_rejected_for_unknown_canonical_service(make_escalation, fast
     def round1(ctx, tool_names):
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "s"}],
+            new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}],
             tool_calls=[
                 {
                     "tool_name": "read_source_code",
@@ -363,7 +370,7 @@ def test_invalid_evidence_and_hypothesis_references_are_rejected_not_crashed(
     def round1(ctx, tool_names):
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "s"}],
+            new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}],
             tool_calls=[
                 {
                     "tool_name": "read_internal_docs",
@@ -406,9 +413,9 @@ def test_tool_calls_per_round_cap_truncates_overflow(make_escalation, storage, t
         return model_output(
             action="call_tool",
             new_hypotheses=[
-                {"id": "H1", "statement": "a"},
-                {"id": "H2", "statement": "b"},
-                {"id": "H3", "statement": "c"},
+                {"id": "H1", "statement": "a", "polarity": "pro"},
+                {"id": "H2", "statement": "b", "polarity": "pro"},
+                {"id": "H3", "statement": "c", "polarity": "pro"},
             ],
             tool_calls=[
                 {"tool_name": "read_internal_docs", "tool_input": {"service": "frontend", "keyword": "k1"}, "hypothesis_id": "H1"},
@@ -440,7 +447,7 @@ def test_new_hypothesis_without_same_round_tool_call_is_rejected(make_escalation
     def round1(ctx, tool_names):
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "s"}, {"id": "H_NO_TOOLS", "statement": "s2"}],
+            new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}, {"id": "H_NO_TOOLS", "statement": "s2", "polarity": "pro"}],
             tool_calls=[
                 {"tool_name": "read_internal_docs", "tool_input": {"service": "frontend", "keyword": "payment"}, "hypothesis_id": "H1"}
             ],
@@ -464,7 +471,7 @@ def test_duplicate_new_hypothesis_id_in_same_round_is_ignored_once(make_escalati
     def round1(ctx, tool_names):
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "a"}, {"id": "H1", "statement": "trùng id"}],
+            new_hypotheses=[{"id": "H1", "statement": "a", "polarity": "pro"}, {"id": "H1", "statement": "trùng id", "polarity": "pro"}],
             tool_calls=[
                 {"tool_name": "read_internal_docs", "tool_input": {"service": "frontend", "keyword": "payment"}, "hypothesis_id": "H1"}
             ],
@@ -489,9 +496,9 @@ def test_hypothesis_cap_rejects_extra_new_hypothesis_in_same_round(make_escalati
         return model_output(
             action="call_tool",
             new_hypotheses=[
-                {"id": "H1", "statement": "a"},
-                {"id": "H2", "statement": "b"},
-                {"id": "H3", "statement": "c"},
+                {"id": "H1", "statement": "a", "polarity": "pro"},
+                {"id": "H2", "statement": "b", "polarity": "pro"},
+                {"id": "H3", "statement": "c", "polarity": "pro"},
             ],
             tool_calls=[
                 {"tool_name": "read_internal_docs", "tool_input": {"service": "frontend", "keyword": "k1"}, "hypothesis_id": "H1"},
@@ -522,7 +529,7 @@ def test_sanitize_blocks_credential_in_tool_output_end_to_end(make_escalation, f
     def round1(ctx, tool_names):
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "s"}],
+            new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}],
             tool_calls=[
                 {
                     "tool_name": "read_source_code",
@@ -566,7 +573,7 @@ def test_check_injection_redacts_tool_output_end_to_end(make_escalation, fast_co
     def round1(ctx, tool_names):
         return model_output(
             action="call_tool",
-            new_hypotheses=[{"id": "H1", "statement": "s"}],
+            new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}],
             tool_calls=[
                 {"tool_name": "read_internal_docs", "tool_input": {"service": "frontend", "keyword": "x"}, "hypothesis_id": "H1"}
             ],
@@ -639,7 +646,7 @@ def test_system_notices_persisted_for_the_round_that_generated_them(
             tool_calls=[
                 {"tool_name": "read_internal_docs", "tool_input": {"service": "frontend", "keyword": "x"}, "hypothesis_id": "H1"}
             ],
-            new_hypotheses=[{"id": "H1", "statement": "s"}],
+            new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}],
         )
 
     def round2(ctx, tool_names):
@@ -651,3 +658,57 @@ def test_system_notices_persisted_for_the_round_that_generated_them(
     rounds = storage.get_agent_rounds("run_notices")
     notices_round1 = json.loads(rounds[0]["system_notices"])
     assert any("does-not-exist" in n for n in notices_round1)
+
+
+def _run_one_hypothesis(make_escalation, fast_config, storage, tool_registry_factory, *, polarity,
+                        escalation_kw=None, tool="read_source_code"):
+    registry, _gk, _traffic = tool_registry_factory(traffic_provider=FakeTrafficProvider())
+    escalation = make_escalation(**(escalation_kw or {}))
+    tool_input = ({"source_service": "frontend", "keyword": "call_payment"} if tool == "read_source_code"
+                  else {"edge": escalation.identity_key, "window": 14})
+
+    def round1(ctx, tool_names):
+        return model_output(action="call_tool",
+                            new_hypotheses=[{"id": "H1", "statement": "s", "polarity": polarity}],
+                            tool_calls=[{"tool_name": tool, "tool_input": tool_input, "hypothesis_id": "H1"}])
+
+    def round2(ctx, tool_names):
+        return model_output(action="conclude",
+                            stance_updates=[{"evidence_id": _evidence_id(ctx, "H1"), "stance": "support"}])
+
+    return make_brain(fast_config, registry, storage, [round1, round2]).run_session(escalation, run_id=f"r-{polarity}-{tool}")
+
+
+def test_supported_con_hypothesis_never_confirms_edge(make_escalation, fast_config, storage, tool_registry_factory):
+    """F1 (05/11): hypothesis phản bác ('traffic chỉ nhất thời') được ủng hộ KHÔNG được ra CONFIDENT
+    — đúng lỗi gây cả 4 FP của benchmark 04/11."""
+    result = _run_one_hypothesis(make_escalation, fast_config, storage, tool_registry_factory,
+                                 polarity="con", tool="read_extended_traffic_window")
+    assert result.final_status == "INSUFFICIENT_BASIS"
+
+
+def test_observed_edge_plus_code_support_is_confident(make_escalation, fast_config, storage, tool_registry_factory):
+    """F2: OBSERVED_WEAK (Tầng 1 đã thấy traffic thật) + code ủng hộ -> đủ hai nguồn -> CONFIDENT."""
+    result = _run_one_hypothesis(make_escalation, fast_config, storage, tool_registry_factory, polarity="pro")
+    assert result.final_status == "CONFIDENT" and result.original_agent_status == "CONFIDENT"
+
+
+def test_extended_window_not_larger_than_tier1_window_is_rejected(make_escalation, fast_config, storage, tool_registry_factory):
+    """F6: window <= cửa sổ Tầng 1 (7) chỉ trả lại y dữ liệu cũ -> từ chối."""
+    registry, _gk, traffic = tool_registry_factory(traffic_provider=FakeTrafficProvider())
+    escalation = make_escalation()
+
+    def round1(ctx, tool_names):
+        assert ctx.goal["tier1_window_days"] == 7
+        return model_output(action="call_tool",
+                            new_hypotheses=[{"id": "H1", "statement": "s", "polarity": "pro"}],
+                            tool_calls=[{"tool_name": "read_extended_traffic_window",
+                                         "tool_input": {"edge": escalation.identity_key, "window": 7},
+                                         "hypothesis_id": "H1"}])
+
+    def round2(ctx, tool_names):
+        assert any("window" in n and "lớn hơn" in n for n in ctx.system_notices)
+        return model_output(action="conclude")
+
+    make_brain(fast_config, registry, storage, [round1, round2]).run_session(escalation, run_id="r-window")
+    assert traffic.calls == []

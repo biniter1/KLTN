@@ -8,6 +8,7 @@ vọng Model tự giác tuân thủ định dạng" dù đã ép structured outp
 
 from __future__ import annotations
 
+import dataclasses
 from typing import List
 
 import jsonschema
@@ -27,14 +28,25 @@ class AgentRuntime:
         self._client = model_client
 
     def call(self, context: ModelContext, tool_names: List[str]) -> ModelOutput:
+        """Output sai schema: gọi lại Model ĐÚNG 1 lần, kèm system notice nêu lỗi (F5, 05/11 —
+        trước đó 1 stance ngoài enum như 'neutral' làm dừng cả phiên). Lần 2 vẫn sai -> raise."""
         schema = build_model_output_schema(
             tool_names, hypothesis_cap_reached=context.hypothesis_cap_reached
         )
         raw = self._client.generate(context, tool_names)
         try:
             jsonschema.validate(raw, schema)
-        except jsonschema.ValidationError as exc:
-            raise ModelOutputSchemaError(f"Model Output sai schema: {exc.message}") from exc
+        except jsonschema.ValidationError as first:
+            retry_ctx = dataclasses.replace(
+                context,
+                system_notices=list(context.system_notices)
+                + [f"Output vòng này sai schema ({first.message}) — trả lời lại đúng schema"],
+            )
+            raw = self._client.generate(retry_ctx, tool_names)
+            try:
+                jsonschema.validate(raw, schema)
+            except jsonschema.ValidationError as exc:
+                raise ModelOutputSchemaError(f"Model Output sai schema: {exc.message}") from exc
 
         return ModelOutput(
             reasoning=raw["reasoning"],
@@ -44,7 +56,8 @@ class AgentRuntime:
                 for su in raw.get("stance_updates", [])
             ],
             new_hypotheses=[
-                NewHypothesis(id=nh["id"], statement=nh["statement"])
+                NewHypothesis(id=nh["id"], statement=nh["statement"],
+                              polarity=nh.get("polarity", "pro"))
                 for nh in raw.get("new_hypotheses", [])
             ],
             tool_calls=[
