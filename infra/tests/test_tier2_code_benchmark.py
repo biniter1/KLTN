@@ -73,3 +73,21 @@ def test_benchmark_runs_end_to_end_with_scripted_model(tmp_path, monkeypatch):
     assert (m["tp"], m["fp"]) == (1, 0)
     assert all(r["tools_used"] == {"read_extended_traffic_window": 1, "read_source_code": 1}
                for r in rep["results"])
+
+
+def test_rerun_same_label_is_refused_before_any_llm_call(tmp_path):
+    mod = _load()
+    from tier2_agent.storage import Storage
+    from tier2_agent.models import SessionState
+
+    db = tmp_path / "b.sqlite3"
+    Storage(str(db)).create_session(SessionState(run_id="bench-v3-r1-pos-01", edge_identity_key="k",
+                                                 session_started_at=0.0))
+    rc = mod.main(["--db", str(db), "--source-root", str(tmp_path), "--label", "v3", "--out", str(tmp_path / "o.json")])
+    assert rc == 2 and not (tmp_path / "o.json").exists()
+
+
+def test_out_of_credit_detection():
+    mod = _load()
+    assert mod._is_out_of_credit("RateLimitError: Error code: 429 - You have no credits remaining.")
+    assert not mod._is_out_of_credit("RateLimitError: Error code: 429 - Rate limit reached for requests")

@@ -123,6 +123,11 @@ def _git_commit() -> str | None:
         return None
 
 
+def _is_out_of_credit(error: str) -> bool:
+    e = error.lower()
+    return "insufficient_quota" in e or "no credits remaining" in e or "credit balance is too low" in e
+
+
 def summarize(results: list[dict]) -> dict:
     def metrics(rows, positive):
         tp = sum(1 for r in rows if r["label"] and r["final_status"] in positive)
@@ -178,6 +183,22 @@ def main(argv=None) -> int:
     from orchestration.wiring import build_brain_runner
     from tier2_agent.storage import Storage
 
+    # Chặn chạy lại cùng --label trên cùng DB TRƯỚC khi gọi LLM (05/11: lần chạy v3 lỗi
+    # "UNIQUE constraint failed: agent_sessions.run_id" vì mã phiên đã có từ lần chạy trước).
+    if Path(args.db).exists():
+        import sqlite3
+
+        with sqlite3.connect(f"file:{args.db}?mode=ro", uri=True) as ro:
+            try:
+                n_old = ro.execute("SELECT count(*) FROM agent_sessions WHERE run_id LIKE ?",
+                                   (f"bench-{args.label}-%",)).fetchone()[0]
+            except sqlite3.OperationalError:
+                n_old = 0
+        if n_old:
+            print(f"LỖI: DB đã có {n_old} phiên với nhãn '{args.label}'. Dùng --label khác "
+                  f"(vd {args.label}b) hoặc --db khác để không trùng mã phiên.", file=sys.stderr)
+            return 2
+
     traffic = FixedTrafficProvider()
     runner = build_brain_runner(db_path=Path(args.db), api_server_url=args.api_server,
                                 source_root=Path(args.source_root), prometheus_client=None,
@@ -209,6 +230,13 @@ def main(argv=None) -> int:
             results.append(row)
             print(f'[r{rep}] {c["case_id"]} {c["source"]}->{c["destination"]} '
                   f'{"DƯƠNG" if c["label"] else "ÂM"}: {row["final_status"] or row["error"]}', flush=True)
+            if row["error"] and _is_out_of_credit(row["error"]):
+                print("DỪNG: nhà cung cấp LLM báo hết credit/quota — các case còn lại không chạy. "
+                      "Kết quả đã chạy vẫn được ghi ra --out.", file=sys.stderr, flush=True)
+                break
+        else:
+            continue
+        break
 
     import os
     report = {
