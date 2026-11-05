@@ -712,3 +712,38 @@ def test_extended_window_not_larger_than_tier1_window_is_rejected(make_escalatio
 
     make_brain(fast_config, registry, storage, [round1, round2]).run_session(escalation, run_id="r-window")
     assert traffic.calls == []
+
+
+def test_no_match_evidence_is_neutral(make_escalation, fast_config, storage, tool_registry_factory):
+    """05/11: "không tìm thấy keyword" không được làm hypothesis pro thành CONFLICTED
+    (benchmark v3: 10/10 phiên dương CONFLICTING do lỗi này)."""
+    registry, _gk, _traffic = tool_registry_factory()
+    escalation = make_escalation()
+
+    def round1(ctx, tool_names):
+        return model_output(action="call_tool",
+                            new_hypotheses=[{"id": "H1", "statement": "frontend gọi đích", "polarity": "pro"}],
+                            tool_calls=[
+                                {"tool_name": "read_source_code",
+                                 "tool_input": {"source_service": "frontend", "keyword": "khong_ton_tai_xyz"},
+                                 "hypothesis_id": "H1"},
+                                {"tool_name": "read_source_code",
+                                 "tool_input": {"source_service": "frontend", "keyword": "call_payment"},
+                                 "hypothesis_id": "H1"}])
+
+    def round2(ctx, tool_names):
+        ev = ctx.hypotheses[0]["evidence"]
+        miss = next(e for e in ev if e["no_match"])
+        hit = next(e for e in ev if not e["no_match"])
+        return model_output(action="conclude", stance_updates=[
+            {"evidence_id": miss["evidence_id"], "stance": "contradict"},
+            {"evidence_id": hit["evidence_id"], "stance": "support"}])
+
+    brain = make_brain(fast_config, registry, storage, [round1, round2])
+    result = brain.run_session(escalation, run_id="r-nomatch")
+    assert result.final_status == "CONFIDENT"
+    rows = storage.get_trace_rows("r-nomatch")
+    miss_row = next(r for r in rows if r.no_match)
+    assert miss_row.stance is None  # Brain từ chối gán stance cho kết quả không khớp
+    rounds = storage._conn.execute("SELECT system_notices FROM agent_rounds WHERE run_id='r-nomatch' AND iteration=2").fetchone()
+    assert "KHÔNG TÌM THẤY" in rounds[0]

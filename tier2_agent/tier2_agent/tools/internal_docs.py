@@ -43,7 +43,8 @@ def make_internal_docs_tool(
         ]
         if not doc_paths:
             return ToolResult(
-                raw_output=f"Service {service!r} không có README/tài liệu nội bộ nào."
+                raw_output=f"Service {service!r} không có README/tài liệu nội bộ nào.",
+                no_match=True,
             )
 
         matches = []
@@ -57,7 +58,8 @@ def make_internal_docs_tool(
                 raw_output=(
                     f"Không tìm thấy dòng nào khớp keyword={keyword!r} trong tài "
                     f"liệu nội bộ của {service!r}."
-                )
+                ),
+                no_match=True,
             )
 
         stale = is_stale(

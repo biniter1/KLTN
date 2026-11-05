@@ -31,7 +31,8 @@ def derive_hypothesis_status(evidence: List[EvidenceRow]) -> HypothesisStatus:
     """5 trạng thái hypothesis, thuần rule-based (mục 7.3)."""
 
     ok_evidence = [e for e in evidence if e.status == ToolRowStatus.OK.value]
-    stances = {e.stance for e in ok_evidence if e.stance}
+    # 05/11: stance của kết quả "không tìm thấy" bị bỏ qua (lớp chặn thứ 2, sau Brain)
+    stances = {e.stance for e in ok_evidence if e.stance and not e.no_match}
     has_support = Stance.SUPPORT.value in stances
     has_contradict = Stance.CONTRADICT.value in stances
 

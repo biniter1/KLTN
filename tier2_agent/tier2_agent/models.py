@@ -136,6 +136,7 @@ class EvidenceRow:
     sanitized_flagged: bool = False
     truncated: bool = False
     pr_number: Optional[str] = None
+    no_match: bool = False  # 05/11: kết quả "không tìm thấy" — stance của nó bị bỏ qua
 
 
 @dataclass
@@ -152,7 +153,7 @@ class HypothesisView:
         return any(
             e.tool_name in tools and e.stance == Stance.SUPPORT.value
             for e in self.evidence
-            if e.status == ToolRowStatus.OK.value
+            if e.status == ToolRowStatus.OK.value and not e.no_match
         )
 
     @property

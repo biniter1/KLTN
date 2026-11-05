@@ -133,7 +133,8 @@ def make_pr_descriptions_tool(
 
         if not prs:
             return ToolResult(
-                raw_output=f"Không có PR nào chạm tới thư mục source của {service!r}."
+                raw_output=f"Không có PR nào chạm tới thư mục source của {service!r}.",
+                no_match=True,
             )
 
         lines = []

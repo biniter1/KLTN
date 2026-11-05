@@ -34,6 +34,9 @@ SYSTEM_INSTRUCTION = (
     "gọi nhau; tool read_source_code đã tự loại các file đó. Service thường tham chiếu "
     "nhau qua biến địa chỉ (vd *_SERVICE_ADDR), tên client hoặc tên method RPC — nên thử "
     "nhiều keyword."
+    "\n\nEvidence có `no_match: true` là kết quả KHÔNG TÌM THẤY: trung tính, không gán "
+    "support/contradict (không thấy 1 keyword không chứng minh là không có dependency) — "
+    "hãy thử keyword khác."
     "\n\nread_extended_traffic_window chỉ có ích khi window LỚN HƠN goal.tier1_window_days "
     "(cửa sổ Tầng 1 đã dùng)."
 )
@@ -179,6 +182,7 @@ def format_context(
                         "stale": e.stale,
                         "status": e.status,
                         "truncated": e.truncated,
+                        "no_match": e.no_match,
                     }
                     for e in view.evidence
                 ],

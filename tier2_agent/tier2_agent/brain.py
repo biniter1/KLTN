@@ -81,6 +81,7 @@ class Brain:
             # ---------------- Giai đoạn A (mục 8.1) ----------------
             trace_rows = self._storage.get_trace_rows(run_id)
             known_evidence_ids = {r.evidence_id for r in trace_rows}
+            no_match_ids = {r.evidence_id for r in trace_rows if r.no_match}
 
             views1 = context_manager.build(trace_rows, hypotheses)
             views1 = context_manager.normalize(views1, self._config)
@@ -111,6 +112,12 @@ class Brain:
                 if su.stance not in _VALID_STANCES:
                     pending_notices.append(
                         f"stance {su.stance!r} không hợp lệ cho evidence_id {su.evidence_id!r}"
+                    )
+                    continue
+                if su.evidence_id in no_match_ids:
+                    pending_notices.append(
+                        f"evidence_id {su.evidence_id!r} là kết quả KHÔNG TÌM THẤY — trung tính, "
+                        "không gán support/contradict (không thấy keyword ≠ không có dependency)"
                     )
                     continue
                 self._storage.update_stance(su.evidence_id, su.stance)
@@ -247,6 +254,7 @@ class Brain:
                         sanitized_flagged=sanitized_flag,
                         truncated=truncated,
                         pr_number=result.pr_number,
+                        no_match=result.no_match,
                     )
                 )
                 dispatched_new_count += 1

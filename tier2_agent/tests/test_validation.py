@@ -156,3 +156,11 @@ def test_distinct_evidence_sources_ignores_error_rows():
         _ev(evidence_id="E2", status="ERROR"),
     ]
     assert distinct_evidence_sources(rows) == 1
+
+
+def test_no_match_stance_ignored_in_hypothesis_status():
+    """Lớp chặn thứ 2: kể cả khi stance đã nằm trong DB, kết quả không khớp không được tính."""
+    hit = _ev(evidence_id="E1", stance="support")
+    miss = _ev(evidence_id="E2", stance="contradict", no_match=True)
+    assert derive_hypothesis_status([hit, miss]) == HypothesisStatus.SUPPORTED
+    assert derive_hypothesis_status([miss]) == HypothesisStatus.INSUFFICIENT

@@ -14,3 +14,17 @@ def test_source_code_tool_drops_generated_proto_files(tmp_path):
     (svc / "main.go").write_text('cartSvcAddr := mustMapEnv("CART_SERVICE_ADDR")  // Cart\n')
     out = tool({"source_service": "frontend", "keyword": "Cart"}).raw_output
     assert "main.go" in out and "demo.pb.go" not in out and "_pb2_grpc" not in out.split("[")[0]
+
+
+def test_search_tools_flag_no_match(tmp_path):
+    from tier2_agent.tools.internal_docs import make_internal_docs_tool
+    from tier2_agent.tools.source_code import make_source_code_tool
+
+    svc = tmp_path / "frontend"
+    svc.mkdir()
+    (svc / "main.go").write_text("x := 1\n")
+    src = make_source_code_tool({"frontend": str(svc)}, stale_threshold_days=365, commit_lookup=lambda p: None)
+    assert src({"source_service": "frontend", "keyword": "zzz"}).no_match is True
+    assert src({"source_service": "frontend", "keyword": "x"}).no_match is False
+    docs = make_internal_docs_tool({"frontend": str(svc)}, stale_threshold_days=365, commit_lookup=lambda p: None)
+    assert docs({"service": "frontend", "keyword": "x"}).no_match is True  # không có README

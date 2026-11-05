@@ -37,6 +37,10 @@ class ToolResult:
     raw_output: str
     stale: bool = False
     pr_number: Optional[str] = None
+    # 05/11: tool tìm kiếm KHÔNG ra kết quả nào (grep không khớp, không có README/PR).
+    # "Không tìm thấy" là trung tính, không phải bằng chứng phản bác (open-world):
+    # benchmark v3 04/11 — 10/10 phiên dương CONFLICTING do model chấm kết quả này là contradict.
+    no_match: bool = False
 
 
 _DEFINITIONS: Dict[str, ToolDefinition] = {

@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS trace_log (
     injection_flagged INTEGER NOT NULL DEFAULT 0,
     sanitized_flagged INTEGER NOT NULL DEFAULT 0,
     truncated INTEGER NOT NULL DEFAULT 0,
-    pr_number TEXT
+    pr_number TEXT,
+    no_match INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_trace_log_run ON trace_log(run_id);
 
@@ -86,12 +87,19 @@ _ADDED_AGENT_ROUNDS_COLUMNS = (
 )
 
 
+_ADDED_TRACE_LOG_COLUMNS = (
+    ("no_match", "INTEGER NOT NULL DEFAULT 0"),  # 05/11
+)
+
+
 def migrate(conn: sqlite3.Connection) -> None:
     """Idempotent — chỉ THÊM cột thiếu, không đổi/xoá cột cũ."""
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(agent_rounds)")}
-    for name, col_type in _ADDED_AGENT_ROUNDS_COLUMNS:
-        if name not in existing:
-            conn.execute(f"ALTER TABLE agent_rounds ADD COLUMN {name} {col_type}")
+    for table, columns in (("agent_rounds", _ADDED_AGENT_ROUNDS_COLUMNS),
+                           ("trace_log", _ADDED_TRACE_LOG_COLUMNS)):
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        for name, col_type in columns:
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {col_type}")
 
 
 class Storage:
@@ -183,8 +191,8 @@ class Storage:
         self._conn.execute(
             "INSERT INTO trace_log (evidence_id, run_id, iteration, hypothesis_id, "
             "tool_name, tool_input, tool_output, stance, stale, status, error_message, "
-            "injection_flagged, sanitized_flagged, truncated, pr_number) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "injection_flagged, sanitized_flagged, truncated, pr_number, no_match) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 row.evidence_id,
                 row.run_id,
@@ -201,6 +209,7 @@ class Storage:
                 int(row.sanitized_flagged),
                 int(row.truncated),
                 row.pr_number,
+                int(row.no_match),
             ),
         )
         self._conn.commit()
@@ -239,6 +248,7 @@ class Storage:
                 sanitized_flagged=bool(r["sanitized_flagged"]),
                 truncated=bool(r["truncated"]),
                 pr_number=r["pr_number"],
+                no_match=bool(r["no_match"]),
             )
             for r in rows
         ]

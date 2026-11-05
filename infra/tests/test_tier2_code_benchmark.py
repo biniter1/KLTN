@@ -66,8 +66,10 @@ def test_benchmark_runs_end_to_end_with_scripted_model(tmp_path, monkeypatch):
                      "--label", "t", "--repeats", "1", "--only", "pos-09", "neg-01", "--out", str(out)]) == 0
     rep = json.loads(out.read_text())
     assert rep["summary"]["runs"] == 2 and rep["summary"]["runs_failed"] == 0, rep["results"]
-    # model giả gán support cho MỌI evidence (kể cả "không tìm thấy") -> 1 TP + 1 FP: kiểm công thức
+    # model giả gán support cho MỌI evidence. Case âm (adservice) chỉ có stub sinh từ proto -> bị
+    # lọc -> kết quả "không tìm thấy" (no_match, trung tính từ 05/11) -> không có nguồn tĩnh -> không
+    # CONFIDENT. Case dương có main.go thật -> CONFIDENT. => 1 TP, 0 FP.
     m = rep["summary"]["confident_only"]
-    assert (m["tp"], m["fp"]) == (1, 1)
+    assert (m["tp"], m["fp"]) == (1, 0)
     assert all(r["tools_used"] == {"read_extended_traffic_window": 1, "read_source_code": 1}
                for r in rep["results"])

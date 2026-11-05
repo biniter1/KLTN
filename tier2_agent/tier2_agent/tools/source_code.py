@@ -70,7 +70,8 @@ def make_source_code_tool(
                     f"Không tìm thấy dòng nào khớp keyword={keyword!r} trong "
                     f"source code của {service!r} (bao gồm Dockerfile), ngoài file sinh tự động."
                     + note
-                )
+                ),
+                no_match=True,
             )
         output = output + note
 
