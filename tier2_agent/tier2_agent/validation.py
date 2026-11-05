@@ -74,7 +74,8 @@ def derive_final_statuses(
 
     F1 — hypothesis có chiều (`polarity`):
       * pro được ủng hộ + con được ủng hộ -> CONFLICTING_EVIDENCE
-      * chỉ con được ủng hộ (cạnh bị bác)  -> INSUFFICIENT_BASIS (không xác nhận cạnh)
+      * chỉ con được ủng hộ (cạnh bị bác)  -> REJECTED_WITH_EVIDENCE (đề xuất loại, admin duyệt;
+        trước 05/11 chiều này trả INSUFFICIENT_BASIS)
       * chỉ pro được ủng hộ                -> ứng viên CONFIDENT, xét corroboration
       Trước đây MỌI hypothesis SUPPORTED đều tính là xác nhận cạnh, kể cả hypothesis
       phản bác ("traffic chỉ nhất thời") -> FP CONFIDENT (benchmark 04/11).
@@ -102,6 +103,8 @@ def derive_final_statuses(
 
     if pro and con:
         return FinalStatus.CONFLICTING_EVIDENCE.value, FinalStatus.CONFLICTING_EVIDENCE.value
+    if con and not pro:
+        return FinalStatus.REJECTED_WITH_EVIDENCE.value, FinalStatus.REJECTED_WITH_EVIDENCE.value
     if pro:
         original = FinalStatus.CONFIDENT.value
         runtime = tier1_observed or any(h.has_structured_support for h in pro)
@@ -110,6 +113,6 @@ def derive_final_statuses(
             return FinalStatus.CONFIDENT.value, original
         return FinalStatus.NEEDS_MONITORING.value, original
 
-    # Không có pro nào được ủng hộ (chỉ con được ủng hộ, hoặc trộn PROPOSED/CONTRADICTED/
-    # INSUFFICIENT) -> chưa đủ cơ sở xác nhận cạnh.
+    # Không hypothesis nào được ủng hộ (trộn PROPOSED/CONTRADICTED/INSUFFICIENT) -> chưa đủ
+    # cơ sở kết luận theo chiều nào.
     return FinalStatus.INSUFFICIENT_BASIS.value, FinalStatus.INSUFFICIENT_BASIS.value

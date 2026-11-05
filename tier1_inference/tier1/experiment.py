@@ -23,10 +23,12 @@ from .evaluation import (
     ConfidenceInterval,
     GroundTruth,
     Metrics,
+    QueueMetrics,
     WilcoxonResult,
     filter_ground_truth,
     mean_ci95,
     precision_recall_f1,
+    review_queue_metrics,
     wilcoxon_signed_rank,
 )
 from .pipeline import run_tier1
@@ -62,6 +64,11 @@ class TrialResult:
     tier1_noise_precision: Metrics
     b1_noise_precision: Metrics
     b2_noise_precision: Metrics
+    # 05/11 — đo theo hàng đợi review (xem evaluation.QueueMetrics). Mặc định None để
+    # TrialResult dựng tay ở test cũ vẫn hợp lệ.
+    tier1_queue: QueueMetrics = None
+    b1_queue: QueueMetrics = None
+    b2_queue: QueueMetrics = None
 
 
 def run_trial(trial: TrialInput, config: ScoringConfig = EXPERIMENT_CONFIG, selector_validator=None) -> TrialResult:
@@ -91,6 +98,9 @@ def run_trial(trial: TrialInput, config: ScoringConfig = EXPERIMENT_CONFIG, sele
         tier1_noise_precision=_sliced(tier1_results, _NOISE_SLICE),
         b1_noise_precision=_sliced(b1_results, _NOISE_SLICE),
         b2_noise_precision=_sliced(b2_results, _NOISE_SLICE),
+        tier1_queue=review_queue_metrics(tier1_results, trial.ground_truth, keep_all_edges=True),
+        b1_queue=review_queue_metrics(b1_results, trial.ground_truth, keep_all_edges=False),
+        b2_queue=review_queue_metrics(b2_results, trial.ground_truth, keep_all_edges=False),
     )
 
 
@@ -103,6 +113,9 @@ class VariantSummary:
     f1_ci: ConfidenceInterval
     sparse_recall_ci: ConfidenceInterval
     noise_precision_ci: ConfidenceInterval
+    queue_recall_ci: ConfidenceInterval = None
+    queue_size_ci: ConfidenceInterval = None
+    review_size_ci: ConfidenceInterval = None
 
 
 @dataclass
@@ -119,6 +132,8 @@ class ExperimentReport:
     tier1_vs_b2_precision: WilcoxonResult
 
     trials: list[TrialResult] = field(default_factory=list)
+    tier1_vs_b1_queue_recall: WilcoxonResult = None
+    tier1_vs_b2_queue_recall: WilcoxonResult = None
 
 
 def _summarize(trial_results: list[TrialResult], variant: str) -> VariantSummary:
@@ -131,6 +146,9 @@ def _summarize(trial_results: list[TrialResult], variant: str) -> VariantSummary
         f1_ci=mean_ci95([getattr(tr, variant).f1 for tr in trial_results]),
         sparse_recall_ci=mean_ci95([getattr(tr, f"{variant}_sparse_recall").recall for tr in trial_results]),
         noise_precision_ci=mean_ci95([getattr(tr, f"{variant}_noise_precision").precision for tr in trial_results]),
+        queue_recall_ci=mean_ci95([getattr(tr, f"{variant}_queue").queue_recall for tr in trial_results]),
+        queue_size_ci=mean_ci95([float(getattr(tr, f"{variant}_queue").queue_size) for tr in trial_results]),
+        review_size_ci=mean_ci95([float(getattr(tr, f"{variant}_queue").review_size) for tr in trial_results]),
     )
 
 
@@ -163,4 +181,8 @@ def run_experiment(trials: list[TrialInput], config: ScoringConfig = EXPERIMENT_
         tier1_vs_b2_recall=wilcoxon_signed_rank(tier1_recall, b2_recall),
         tier1_vs_b2_precision=wilcoxon_signed_rank(tier1_precision, b2_precision),
         trials=trial_results,
+        tier1_vs_b1_queue_recall=wilcoxon_signed_rank([tr.tier1_queue.queue_recall for tr in trial_results],
+                                                      [tr.b1_queue.queue_recall for tr in trial_results]),
+        tier1_vs_b2_queue_recall=wilcoxon_signed_rank([tr.tier1_queue.queue_recall for tr in trial_results],
+                                                      [tr.b2_queue.queue_recall for tr in trial_results]),
     )

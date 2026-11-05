@@ -39,6 +39,9 @@ REASONS: dict[str, ReasonSpec] = {
                                        "Tier 2 CONFLICTING_EVIDENCE", "high", True),
     "AGENT_INSUFFICIENT_BASIS": ReasonSpec("edge", frozenset({"APPROVE", "REJECT"}),
                                            "Tier 2 NEEDS_MONITORING / INSUFFICIENT_BASIS", "low", True),
+    # 05/11: Tầng 2 đề xuất LOẠI kèm bằng chứng — admin vẫn quyết (APPROVE = vẫn cho phép).
+    "AGENT_REJECTED": ReasonSpec("edge", frozenset({"APPROVE", "REJECT"}),
+                                 "Tier 2 REJECTED_WITH_EVIDENCE", "low", True),
     # NOTE (điểm mở): mục 2 chỉ ghi "Xử lý vận hành (tool hỏng)", enum action không có
     # "ACKNOWLEDGE" -> dùng APPROVE với nghĩa "đã xử lý xong", BẮT BUỘC kèm payload.note.
     "TOOL_ADMIN_ATTENTION": ReasonSpec("agent_session", frozenset({"APPROVE"}),
@@ -57,7 +60,7 @@ REASONS: dict[str, ReasonSpec] = {
                                    "Continuity Monitor mục 2.8", "low", False),
 }
 
-assert set(REASONS) == set(REASON_CODES), "REASONS phải phủ đúng 11 reason_code của db.py"
+assert set(REASONS) == set(REASON_CODES), "REASONS phải phủ đúng mọi reason_code của db.py"
 assert all(spec.actions <= set(ACTIONS) for spec in REASONS.values())
 
 URGENCY_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -66,6 +69,7 @@ TIER2_REVIEW_STATUSES = {
     "CONFLICTING_EVIDENCE": "CONFLICTING_EVIDENCE",
     "NEEDS_MONITORING": "AGENT_INSUFFICIENT_BASIS",
     "INSUFFICIENT_BASIS": "AGENT_INSUFFICIENT_BASIS",
+    "REJECTED_WITH_EVIDENCE": "AGENT_REJECTED",
 }
 
 

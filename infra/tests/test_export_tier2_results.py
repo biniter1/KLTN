@@ -113,3 +113,28 @@ def test_db_opened_read_only(tmp_path):
     except sqlite3.OperationalError:
         raised = True
     assert raised
+
+
+def test_queue_metrics_and_false_drop(tmp_path):
+    """05/11 — hàng đợi review: Tầng 2 REJECTED_WITH_EVIDENCE trên cạnh thật = false drop."""
+    mod = _load()
+    db = tmp_path / "k.sqlite3"
+    _build_db(db)
+    c = sqlite3.connect(db)
+    c.execute("UPDATE dependency_evidence SET tier2_status='REJECTED_WITH_EVIDENCE' "
+              "WHERE destination_canonical_service='d'")
+    c.commit()
+    c.close()
+    gt_dir = tmp_path / "gt"
+    gt_dir.mkdir()
+    (gt_dir / "trial-01.json").write_text(json.dumps({
+        f"{NS}|a|{NS}|b": True, f"{NS}|a|{NS}|c": True, f"{NS}|a|{NS}|d": True,
+        f"{NS}|a|{NS}|e": True, f"{NS}|x|{NS}|y": False,
+    }))
+    out = tmp_path / "out"
+    assert mod.main(["--db", str(db), "--ground-truth-dir", str(gt_dir), "--run-ids", "trial-01",
+                     "--out-dir", str(out)]) == 0
+    q = json.loads((out / "tier2_report.json").read_text())["trials"][0]["queue"]
+    assert q["tier1"]["queue_recall"] == 1.0 and q["tier1"]["queue_size"] == 5
+    assert q["tier1_plus_tier2"]["queue_recall"] == 0.75 and q["false_drop"] == 1 and q["dropped"] == 1
+    assert q["b1"]["missed"] == 1  # a->e không có traffic

@@ -282,7 +282,7 @@ def test_decided_by_required(client):
 
 def test_reason_codes_catalogue(client):
     cat = client.get("/reason-codes").json()
-    assert len(cat) == 11
+    assert len(cat) == 12  # 11 reason_code gốc + AGENT_REJECTED (05/11)
     assert cat["EMERGENCY_EXCEPTION_EXPIRED"]["allowed_actions"] == ["EXTEND_EXCEPTION", "MAKE_PERMANENT", "REVOKE"]
     assert cat["STALE_PERMISSION"]["generated_by_review_queue"] is False
 

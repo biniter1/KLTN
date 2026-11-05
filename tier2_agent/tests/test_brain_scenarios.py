@@ -684,7 +684,7 @@ def test_supported_con_hypothesis_never_confirms_edge(make_escalation, fast_conf
     — đúng lỗi gây cả 4 FP của benchmark 04/11."""
     result = _run_one_hypothesis(make_escalation, fast_config, storage, tool_registry_factory,
                                  polarity="con", tool="read_extended_traffic_window")
-    assert result.final_status == "INSUFFICIENT_BASIS"
+    assert result.final_status == "REJECTED_WITH_EVIDENCE"  # đề xuất loại có bằng chứng (05/11), không xác nhận cạnh
 
 
 def test_observed_edge_plus_code_support_is_confident(make_escalation, fast_config, storage, tool_registry_factory):

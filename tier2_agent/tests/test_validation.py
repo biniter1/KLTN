@@ -108,7 +108,8 @@ def test_final_status_polarity():
     con = _view("H2", HypothesisStatus.SUPPORTED, [_ev(evidence_id="E9", tool_name="read_extended_traffic_window",
                                                        stance="support")])
     con.polarity = "con"
-    assert derive_final_statuses([con], tier1_observed=True)[0] == FinalStatus.INSUFFICIENT_BASIS.value
+    assert derive_final_statuses([con], tier1_observed=True) == (FinalStatus.REJECTED_WITH_EVIDENCE.value,
+                                                                 FinalStatus.REJECTED_WITH_EVIDENCE.value)
     pro = _view("H1", HypothesisStatus.SUPPORTED, [_ev(tool_name="read_source_code", stance="support")])
     assert derive_final_statuses([pro, con], tier1_observed=True)[0] == FinalStatus.CONFLICTING_EVIDENCE.value
 

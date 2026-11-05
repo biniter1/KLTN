@@ -33,6 +33,10 @@ class FinalStatus(str, Enum):
     NEEDS_MONITORING = "NEEDS_MONITORING"
     INSUFFICIENT_BASIS = "INSUFFICIENT_BASIS"
     CONFLICTING_EVIDENCE = "CONFLICTING_EVIDENCE"
+    # 05/11: chỉ hypothesis `con` được ủng hộ (có bằng chứng cạnh KHÔNG phải dependency),
+    # không có `pro` nào được ủng hộ. Tách khỏi INSUFFICIENT_BASIS ("không tìm được gì")
+    # — trong mục tiêu ưu tiên giảm FN, chỉ trạng thái này mới được ĐỀ XUẤT LOẠI (admin vẫn duyệt).
+    REJECTED_WITH_EVIDENCE = "REJECTED_WITH_EVIDENCE"
 
 
 class Stance(str, Enum):

@@ -41,6 +41,9 @@ def _report_to_jsonable(report) -> dict:
             "f1_ci": dataclasses.asdict(s.f1_ci),
             "sparse_recall_ci": dataclasses.asdict(s.sparse_recall_ci),
             "noise_precision_ci": dataclasses.asdict(s.noise_precision_ci),
+            "queue_recall_ci": dataclasses.asdict(s.queue_recall_ci),
+            "queue_size_ci": dataclasses.asdict(s.queue_size_ci),
+            "review_size_ci": dataclasses.asdict(s.review_size_ci),
         }
 
     return {
@@ -52,6 +55,8 @@ def _report_to_jsonable(report) -> dict:
         "tier1_vs_b1_precision": dataclasses.asdict(report.tier1_vs_b1_precision),
         "tier1_vs_b2_recall": dataclasses.asdict(report.tier1_vs_b2_recall),
         "tier1_vs_b2_precision": dataclasses.asdict(report.tier1_vs_b2_precision),
+        "tier1_vs_b1_queue_recall": dataclasses.asdict(report.tier1_vs_b1_queue_recall),
+        "tier1_vs_b2_queue_recall": dataclasses.asdict(report.tier1_vs_b2_queue_recall),
     }
 
 
@@ -71,6 +76,13 @@ def _print_summary(report) -> None:
     print("\n--- Lát cắt nhiễu HEALTHCHECK/MONITORING, precision ---")
     for name, s in (("Tier 1", report.tier1), ("B1", report.b1), ("B2", report.b2)):
         print(f"{name:8s} precision={_fmt(s.noise_precision_ci)}")
+    print("\n--- Hàng đợi review (ưu tiên giảm FN): recall hàng đợi | số cặp admin nhận | trong đó cần review ---")
+    for name, s in (("Tier 1", report.tier1), ("B1", report.b1), ("B2", report.b2)):
+        print(f"{name:8s} recall={_fmt(s.queue_recall_ci)}  hàng đợi={s.queue_size_ci.mean:.1f}  "
+              f"cần review={s.review_size_ci.mean:.1f}")
+    for label, w in (("Tier1 vs B1, recall hàng đợi", report.tier1_vs_b1_queue_recall),
+                     ("Tier1 vs B2, recall hàng đợi", report.tier1_vs_b2_queue_recall)):
+        print(f"{label:30s} p={w.p_value}  ({w.note or 'ok'})")
     print("\n--- Wilcoxon signed-rank (Tier 1 vs baseline, paired theo trial) ---")
     for label, w in (
         ("Tier1 vs B1, recall", report.tier1_vs_b1_recall),

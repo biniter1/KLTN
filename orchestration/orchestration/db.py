@@ -33,13 +33,14 @@ from . import _paths  # noqa: F401
 PIPELINE_STEPS = ("trial", "scenario_check", "traffic_collector", "config_collector", "tier1", "tier2")
 RUN_STATUSES = ("RUNNING", "SUCCESS", "FAILED")
 
-# DASHBOARD_DESIGN.md mục 2 — 11 reason_code.
+# DASHBOARD_DESIGN.md mục 2 — 11 reason_code + AGENT_REJECTED (05/11).
 REASON_CODES = (
     "CLEAN_CONFIG_MATCH",
     "NEEDS_MANUAL_SELECTOR",
     "HIGH_BLAST_RADIUS",
     "CONFLICTING_EVIDENCE",
     "AGENT_INSUFFICIENT_BASIS",
+    "AGENT_REJECTED",
     "TOOL_ADMIN_ATTENTION",
     "POLICY_WOULD_BREAK",
     "POLICY_UNSUPPORTED_BY_EVIDENCE",

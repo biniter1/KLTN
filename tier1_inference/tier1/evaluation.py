@@ -60,6 +60,62 @@ def precision_recall_f1(results: list[DependencyEdgeResult], ground_truth: Groun
     return Metrics(precision=precision, recall=recall, f1=f1, tp=tp, fp=fp, fn=fn)
 
 
+@dataclass
+class QueueMetrics:
+    """Đo theo HÀNG ĐỢI REVIEW (thêm 05/11, mục tiêu ưu tiên giảm FN — admin duyệt cuối).
+
+    - `queue_recall`: cạnh thật có mặt trong hàng đợi / tổng cạnh thật. Cạnh thật không
+      có trong hàng đợi = FN nguy hiểm (sẽ bị chặn khi áp NetworkPolicy).
+    - `queue_size`: số cặp admin nhận (đề xuất cho phép + cần review).
+    - `allow_size`: cặp được ĐỀ XUẤT CHO PHÉP (admin chỉ cần xác nhận).
+    - `review_size`: cặp CẦN REVIEW (admin phải xem bằng chứng rồi quyết).
+    - `missed`: số cạnh thật không có trong hàng đợi.
+    Chỉ số cũ (precision/recall theo OBSERVED_STRONG) vẫn giữ, KHÔNG bị thay thế."""
+
+    queue_recall: float
+    queue_size: int
+    allow_size: int
+    review_size: int
+    missed: int
+
+
+def _is_suggested_allow(r: DependencyEdgeResult) -> bool:
+    return r.dependency_status == DependencyStatus.OBSERVED_STRONG or bool(getattr(r, "auto_allow_reason", None))
+
+
+def review_queue_metrics(
+    results: list[DependencyEdgeResult],
+    ground_truth: GroundTruth,
+    *,
+    keep_all_edges: bool = True,
+    dropped_pairs: Optional[set] = None,
+) -> QueueMetrics:
+    """`keep_all_edges=True` (Tầng 1): MỌI cạnh Tầng 1 dựng được đều vào hàng đợi — STRONG
+    hoặc monitoring đã xác minh là "đề xuất cho phép", còn lại "cần review". Tầng 1 không
+    tự loại cạnh nào nó đã thấy.
+    `keep_all_edges=False` (B1/B2): baseline không có khái niệm review — chỉ cặp dự đoán
+    dương vào hàng đợi (đều là "đề xuất cho phép"), còn lại coi như bị loại.
+    `dropped_pairs`: cặp bị loại thêm ở bước sau (vd Tầng 2 REJECTED_WITH_EVIDENCE)."""
+    dropped = set(dropped_pairs or ())
+    if keep_all_edges:
+        queue = {r.identity_key.pair_key() for r in results}
+        allow = {r.identity_key.pair_key() for r in results if _is_suggested_allow(r)}
+    else:
+        queue = predicted_positive_pairs(results)
+        allow = set(queue)
+    queue -= dropped
+    allow &= queue
+    actual_positive = {pk for pk, is_real in ground_truth.items() if is_real}
+    found = len(actual_positive & queue)
+    return QueueMetrics(
+        queue_recall=found / len(actual_positive) if actual_positive else 0.0,
+        queue_size=len(queue),
+        allow_size=len(allow),
+        review_size=len(queue - allow),
+        missed=len(actual_positive) - found,
+    )
+
+
 def filter_ground_truth(
     ground_truth: GroundTruth,
     results: list[DependencyEdgeResult],

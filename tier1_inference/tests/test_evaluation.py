@@ -182,3 +182,38 @@ def test_wilcoxon_real_difference_produces_valid_p_value():
     result = wilcoxon_signed_rank(tier1_recall, b2_recall)
     assert 0.0 <= result.p_value <= 1.0
     assert result.p_value < 0.05  # khác biệt rõ ràng, kỳ vọng có ý nghĩa thống kê
+
+
+# ---------------------------------------------------------------------------
+# review_queue_metrics (05/11 — đo theo hàng đợi review, ưu tiên giảm FN)
+# ---------------------------------------------------------------------------
+
+
+def test_review_queue_keeps_every_tier1_edge_and_splits_allow_review():
+    from tier1.evaluation import review_queue_metrics
+
+    strong = _result(dest="cartservice")
+    weak = _result(dest="emailservice", status=DependencyStatus.OBSERVED_WEAK)
+    not_obs = _result(dest="adservice", status=DependencyStatus.NOT_OBSERVED)
+    monitoring = _result(dest="currencyservice", status=DependencyStatus.OBSERVED_WEAK)
+    monitoring.auto_allow_reason = "VERIFIED_MONITORING"
+    gt = {strong.identity_key.pair_key(): True, weak.identity_key.pair_key(): True,
+          not_obs.identity_key.pair_key(): False, monitoring.identity_key.pair_key(): False,
+          (NS, "frontend", NS, "paymentservice"): True}  # cặp thật không thành cạnh nào -> missed
+    q = review_queue_metrics([strong, weak, not_obs, monitoring], gt, keep_all_edges=True)
+    assert (q.queue_size, q.allow_size, q.review_size, q.missed) == (4, 2, 2, 1)
+    assert q.queue_recall == pytest.approx(2 / 3)
+    # chỉ số cũ không đổi: WEAK vẫn là FN theo precision_recall_f1
+    assert precision_recall_f1([strong, weak, not_obs, monitoring], gt).fn == 2
+
+
+def test_review_queue_baseline_mode_and_dropped_pairs():
+    from tier1.evaluation import review_queue_metrics
+
+    strong = _result(dest="cartservice")
+    weak = _result(dest="emailservice", status=DependencyStatus.OBSERVED_WEAK)
+    gt = {strong.identity_key.pair_key(): True, weak.identity_key.pair_key(): True}
+    base = review_queue_metrics([strong, weak], gt, keep_all_edges=False)
+    assert (base.queue_size, base.review_size, base.missed) == (1, 0, 1)
+    dropped = review_queue_metrics([strong, weak], gt, dropped_pairs={weak.identity_key.pair_key()})
+    assert (dropped.queue_size, dropped.missed) == (1, 1)

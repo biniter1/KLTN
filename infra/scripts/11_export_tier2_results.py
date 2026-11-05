@@ -102,6 +102,14 @@ def metrics(predicted: set, ground_truth: dict) -> dict:
     return {"precision": p, "recall": r, "f1": f1, "tp": tp, "fp": fp, "fn": fn}
 
 
+def queue_metrics(queue: set, ground_truth: dict) -> dict:
+    """Recall hàng đợi = cạnh thật có trong hàng đợi / tổng cạnh thật; kèm cỡ hàng đợi."""
+    actual = {pk for pk, real in ground_truth.items() if real}
+    found = len(actual & queue)
+    return {"queue_recall": found / len(actual) if actual else 0.0, "queue_size": len(queue),
+            "missed": len(actual) - found}
+
+
 def session_info(conn, session_id: Optional[str]) -> dict:
     out = {"rounds": None, "stopped_by": None, "stop_reason": None, "last_reasoning": None,
            "llm_calls": None, "input_tokens": None, "output_tokens": None,
@@ -140,6 +148,12 @@ def analyse_trial(conn, run_id: str, ground_truth: dict, tier2_positive: set) ->
     tier2_pos = {pair_of(r) for r in rows if r["escalate_to_tier2"] and r["tier2_status"] in tier2_positive}
     b1_pos = {pair_of(r) for r in rows if (r["count"] or 0) > 0}
     b2_pos = {pair_of(r) for r in rows if (r["count"] or 0) >= 20 and (r["distinct_days"] or 0) >= 3}
+    # 05/11 — hàng đợi review (ưu tiên giảm FN): mọi cạnh Tầng 1 dựng được, trừ cạnh Tầng 2
+    # ĐỀ XUẤT LOẠI có bằng chứng. false_drop = cạnh thật bị đề xuất loại (lỗi nguy hiểm nhất).
+    all_pairs = {pair_of(r) for r in rows}
+    dropped = {pair_of(r) for r in rows if r["tier2_status"] == "REJECTED_WITH_EVIDENCE"}
+    queue_tier1 = all_pairs
+    queue_after = all_pairs - dropped
 
     edges = []
     for r in rows:
@@ -179,6 +193,14 @@ def analyse_trial(conn, run_id: str, ground_truth: dict, tier2_positive: set) ->
             "b1": metrics(b1_pos, ground_truth),
             "b2": metrics(b2_pos, ground_truth),
         },
+        "queue": {
+            "tier1": queue_metrics(queue_tier1, ground_truth),
+            "tier1_plus_tier2": queue_metrics(queue_after, ground_truth),
+            "b1": queue_metrics(b1_pos, ground_truth),
+            "b2": queue_metrics(b2_pos, ground_truth),
+            "false_drop": len(dropped & actual),
+            "dropped": len(dropped),
+        },
         "edges": edges,
     }
 
@@ -200,6 +222,15 @@ def summarise(trials: list[dict]) -> dict:
                  ("tier1", "b1"), ("tier1", "b2")):
         for m in ("recall", "precision"):
             summary[f"{a}_vs_{b}_{m}"] = dataclasses.asdict(wilcoxon_signed_rank(series(a, m), series(b, m)))
+    q = [t["queue"] for t in ok if "queue" in t]
+    if q:
+        summary["queue"] = {
+            v: {"queue_recall_ci": dataclasses.asdict(mean_ci95([x[v]["queue_recall"] for x in q])),
+                "queue_size_ci": dataclasses.asdict(mean_ci95([float(x[v]["queue_size"]) for x in q]))}
+            for v in ("tier1", "tier1_plus_tier2", "b1", "b2")
+        }
+        summary["queue"]["false_drop_total"] = sum(x["false_drop"] for x in q)
+        summary["queue"]["dropped_total"] = sum(x["dropped"] for x in q)
     return summary
 
 
@@ -266,6 +297,14 @@ def main(argv=None) -> int:
             r = s[v]["recall_ci"]
             pr = s[v]["precision_ci"]
             print(f"  {v:18s} recall={r['mean']:.3f}±{r['half_width']:.3f}  precision={pr['mean']:.3f}±{pr['half_width']:.3f}")
+    if s.get("queue"):
+        print("  -- hàng đợi review (ưu tiên giảm FN) --")
+        for v in ("tier1", "tier1_plus_tier2", "b1", "b2"):
+            qr = s["queue"][v]["queue_recall_ci"]
+            print(f"  {v:18s} recall hàng đợi={qr['mean']:.3f}±{qr['half_width']:.3f}  "
+                  f"cỡ hàng đợi={s['queue'][v]['queue_size_ci']['mean']:.1f}")
+        print(f"  Tầng 2 đề xuất loại: {s['queue']['dropped_total']} cạnh · false drop (cạnh thật bị loại): "
+              f"{s['queue']['false_drop_total']}")
     print(f"Cạnh escalate: {len(edges)} · kết luận sai (FP/FN): {len(wrong)} · ghi vào {out_dir}")
     return 0
 
