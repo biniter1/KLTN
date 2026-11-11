@@ -1,0 +1,371 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Bản đồ Tầng 2</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: một cột tài liệu kỹ thuật, sơ đồ lớn ở trên, bảng tra cứu theo từng khối bên dưới, nhật ký thay đổi cuối trang */
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --fg:#1b2330; --muted:#5b6678; --line:#d9dee6;
+  --accent:#1f6f8b; --accent-soft:#e3f0f4;
+  --new:#7a4fd6; --new-soft:#efe8fc;
+  --warn:#b0571c; --warn-soft:#fbeee4;
+  --ok:#2f7d4f; --ok-soft:#e5f3ea;
+  --font-body:"Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161c; --panel:#1a2029; --fg:#e4e8ee; --muted:#9aa5b4; --line:#2c3440;
+  --accent:#5fb3cf; --accent-soft:#1c2f37; --new:#b597f2; --new-soft:#2a2240;
+  --warn:#e59a62; --warn-soft:#352419; --ok:#6fc290; --ok-soft:#1b2e23; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161c; --panel:#1a2029; --fg:#e4e8ee; --muted:#9aa5b4; --line:#2c3440;
+  --accent:#5fb3cf; --accent-soft:#1c2f37; --new:#b597f2; --new-soft:#2a2240;
+  --warn:#e59a62; --warn-soft:#352419; --ok:#6fc290; --ok-soft:#1b2e23; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:1080px;margin:0 auto;display:grid;gap:36px}
+h1{font-size:28px;line-height:1.25;margin:0;text-wrap:balance}
+h2{font-size:20px;margin:0 0 4px;text-wrap:balance}
+h3{font-size:15px;margin:0}
+p{margin:0}
+.lead{color:var(--muted);max-width:70ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{font-family:var(--font-mono);font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted)}
+.chip.v3{border-color:var(--new);color:var(--new);background:var(--new-soft)}
+.chip.warn{border-color:var(--warn);color:var(--warn);background:var(--warn-soft)}
+section{display:grid;gap:14px}
+.sub{color:var(--muted);font-size:14px;max-width:75ch}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+.diagram{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto}
+.diagram pre.mermaid{margin:0;min-width:760px;background:transparent}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:8px;min-width:0}
+.step header{display:flex;gap:10px;align-items:baseline}
+.num{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:2px 7px;border-radius:5px;flex:none}
+.file{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+ul{margin:0;padding-left:18px}
+li{margin:2px 0}
+code{font-family:var(--font-mono);font-size:12.5px;background:var(--accent-soft);padding:0 4px;border-radius:4px}
+.tag-new{font-size:11px;font-weight:600;color:var(--new);background:var(--new-soft);padding:1px 6px;border-radius:4px;margin-left:4px;white-space:nowrap}
+.tag-sec{font-size:11px;color:var(--muted);border:1px dashed var(--line);padding:0 6px;border-radius:4px;margin-left:4px;white-space:nowrap}
+.tablebox{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--bg)}
+tr:last-child td{border-bottom:none}
+td.mono{font-family:var(--font-mono);font-size:12.5px;white-space:nowrap}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px}
+.p-ok{color:var(--ok);background:var(--ok-soft)} .p-warn{color:var(--warn);background:var(--warn-soft)} .p-new{color:var(--new);background:var(--new-soft)}
+.note{border-left:3px solid var(--warn);background:var(--warn-soft);padding:10px 14px;border-radius:0 8px 8px 0;font-size:14px}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="wrap">
+
+<header>
+  <h1>Bản đồ Tầng 2: code đang chạy thật</h1>
+  <p class="lead">Mô tả đúng code trên nhánh <code>tier2-run-tooling</code> tại commit <code>556df77</code> (05/11/2026). Mọi khối đều ghi file và hàm tương ứng. Phần đánh dấu <span class="tag-new">v3</span> là thay đổi ngày 05/11. Các bước bảo mật chỉ ghi chú nhỏ <span class="tag-sec">bảo mật</span>, theo yêu cầu tập trung vào giải pháp.</p>
+  <div class="meta">
+    <span class="chip">nhánh tier2-run-tooling (PR #3)</span>
+    <span class="chip v3">HEAD 556df77 · v3 + no_match + hàng đợi review</span>
+    <span class="chip warn">chưa merge vào main</span>
+    <span class="chip">model đã chạy: gpt-4.1-2025-04-14</span>
+  </div>
+</header>
+
+<section>
+  <h2>1. Toàn cảnh: từ Tầng 1 tới kết quả</h2>
+  <p class="sub">Một phiên Tầng 2 xử lý đúng một cạnh. Brain là thành phần duy nhất ra quyết định, ghi DB và chạy tool. Model chỉ đề xuất.</p>
+  <div class="legend"><span style="--c:var(--accent)">luồng chính</span><span style="--c:var(--new)">thêm/đổi ở v3</span><span style="--c:var(--warn)">luật chặn/từ chối</span></div>
+  <div class="diagram"><pre class="mermaid">
+%%{init: {"theme":"neutral","flowchart":{"curve":"basis","nodeSpacing":28,"rankSpacing":34}}}%%
+flowchart TB
+  T1["Tầng 1 · dependency_evidence<br/>cạnh có escalate_to_tier2 = 1"] --> ORCH["Batch Orchestrator<br/>batch.py · _run_tier2"]
+  ORCH -->|"escalation_dict(cạnh)"| RUN["BrainTier2Runner.run<br/>wiring.py · bắt đầu ghi token"]
+  RUN --> GATE{"should_escalate?<br/>WEAK / UNKNOWN /<br/>NOT_OBSERVED + config mù"}
+  GATE -->|"không"| ERR["InvalidEscalationError"]
+  GATE -->|"có"| SESS["Tạo phiên · agent_sessions"]
+  SESS --> LOOP
+
+  subgraph LOOP["Vòng lặp mỗi round (tối đa 8)"]
+    direction TB
+    A1["A1 · Đọc Trace Log<br/>get_trace_rows"] --> A2["A2 · Build ①<br/>nhóm evidence theo hypothesis<br/>+ tính trạng thái hypothesis"]
+    A2 --> A3["A3 · Normalize<br/>cắt evidence nếu quá 70% ngân sách token"]
+    A3 --> A4["A4 · Format context<br/>goal + tool definitions + hypotheses + notices"]
+    A4 --> A5["A5 · Agent Runtime → Model<br/>ép JSON schema · temperature 0 · sai schema gọi lại 1 lần"]
+    A5 --> B1["B1 · Áp stance cho evidence vòng trước"]
+    B1 --> B2["B2 · Cắt tool_calls còn ≤ 4"]
+    B2 --> B3["B3 · Nhận hypothesis mới<br/>có polarity pro/con"]
+    B3 --> B4["B4 · Chạy từng tool_call<br/>validate → dedup → chạy → ghi Trace Log"]
+    B4 --> B5["B5 · Build ② (đọc lại Trace Log)"]
+    B5 --> B6{"B6 · Observer<br/>dừng?"}
+    B6 -->|"tiếp"| A1
+  end
+
+  B6 -->|"dừng"| B7["B7 · Validation → trạng thái cuối<br/>derive_final_statuses"]
+  B7 --> B8["B8 · Result Formatter → RoundResult<br/>ghi agent_rounds · phase = CONCLUDED"]
+  B8 --> APPLY["Orchestrator: apply_tier2_result<br/>ghi tier2_status, tier2_original_status, tier2_session_id"]
+  APPLY --> DB[("dependency_evidence")]
+  B4 -. "read_pr_descriptions" .-> API["API Server gatekeeper<br/>giữ GITHUB_TOKEN"] -.-> GH["GitHub API"]
+
+  classDef v3 fill:#efe8fc,stroke:#7a4fd6,color:#2a1d4a;
+  classDef rule fill:#fbeee4,stroke:#b0571c,color:#4a2610;
+  class A5,B3,B7 v3;
+  class GATE,B6,ERR rule;
+  </pre></div>
+  <p class="sub">Lưu ý: B7 và B8 thực ra chạy <strong>mọi vòng</strong>, để dashboard xem được tiến trình theo thời gian thực. Chỉ khi Observer báo dừng, kết quả mới được đánh dấu là bản cuối và trả về Orchestrator. Sơ đồ vẽ B7, B8 sau nhánh "dừng" cho dễ đọc.</p>
+</section>
+
+<section>
+  <h2>2. Từng bước trong một vòng</h2>
+  <div class="grid2">
+    <article class="step"><header><span class="num">A1–A2</span><h3>Đọc Trace Log và Build ①</h3></header>
+      <p class="file">brain.py · context_manager.build · validation.derive_hypothesis_status</p>
+      <ul><li>Lấy mọi evidence của phiên, nhóm theo <code>hypothesis_id</code>.</li>
+      <li>Sắp evidence theo độ tin cậy: traffic &gt; PR &gt; source &gt; docs. Evidence cũ (stale) bị đẩy xuống.</li>
+      <li>Tính trạng thái từng hypothesis (bảng ở mục 3).</li></ul></article>
+
+    <article class="step"><header><span class="num">A3</span><h3>Normalize</h3></header>
+      <p class="file">context_manager.normalize</p>
+      <ul><li>Ước lượng token = số ký tự / 4.</li>
+      <li>Vượt 70% của 200.000 token thì bỏ dần evidence kém tin cậy nhất. Thực tế chưa lần nào chạm ngưỡng này.</li></ul></article>
+
+    <article class="step"><header><span class="num">A4</span><h3>Format context gửi model</h3></header>
+      <p class="file">context_manager.format_context</p>
+      <ul><li><strong>goal</strong>: toàn bộ hồ sơ escalate của Tầng 1, cộng <code>escalation_reason</code>, <code>identity_key</code> (v2), <code>tier1_window_days</code><span class="tag-new">v3</span>.</li>
+      <li><strong>available_tools</strong>: tên, mô tả và schema input của 4 tool.</li>
+      <li><strong>hypotheses</strong>: id, statement, <code>polarity</code><span class="tag-new">v3</span>, status, danh sách evidence kèm stance.</li>
+      <li><strong>system_notices</strong>: thông báo từ vòng trước (bị từ chối, trùng lệnh, lỗi tool...).</li>
+      <li><strong>system_instruction</strong>: hướng dẫn polarity, cảnh báo code sinh từ .proto, gợi ý keyword, luật cửa sổ traffic<span class="tag-new">v3</span>. <span class="tag-sec">bảo mật: evidence bọc trong thẻ &lt;evidence&gt;</span></li></ul></article>
+
+    <article class="step"><header><span class="num">A5</span><h3>Agent Runtime → Model</h3></header>
+      <p class="file">agent_runtime.py · llm/client.py · llm/schemas.py</p>
+      <ul><li>Dựng JSON schema output mỗi vòng: tên tool chỉ được chọn trong danh sách; đủ 4 hypothesis thì bỏ hẳn trường <code>new_hypotheses</code>.</li>
+      <li>Client (OpenAI hoặc Anthropic) thêm system prompt, ép model gọi đúng function <code>submit_model_output</code>, <code>temperature=0</code><span class="tag-new">v3</span>.</li>
+      <li>Output sai schema thì gọi lại 1 lần kèm notice; lần 2 vẫn sai thì báo lỗi<span class="tag-new">v3</span>.</li>
+      <li>Token mỗi lần gọi được ghi vào bảng <code>llm_usage</code>.</li></ul></article>
+
+    <article class="step"><header><span class="num">Output</span><h3>Model trả về gì</h3></header>
+      <p class="file">ModelOutput (models.py)</p>
+      <ul><li><code>reasoning</code>: lập luận dạng văn bản.</li>
+      <li><code>stance_updates</code>: [evidence_id, support | contradict].</li>
+      <li><code>new_hypotheses</code>: [id, statement, polarity pro | con<span class="tag-new">v3</span>].</li>
+      <li><code>tool_calls</code>: [tool_name, tool_input, hypothesis_id].</li>
+      <li><code>action</code>: call_tool | conclude.</li></ul></article>
+
+    <article class="step"><header><span class="num">B1</span><h3>Áp stance</h3></header>
+      <p class="file">brain.py · storage.update_stance</p>
+      <ul><li>evidence_id không tồn tại: từ chối, ghi notice.</li>
+      <li>Stance ngoài {support, contradict}: từ chối, ghi notice.</li>
+      <li>Evidence là kết quả <strong>không tìm thấy</strong> (<code>no_match</code>): từ chối stance, ghi notice "trung tính"<span class="tag-new">05/11</span>.</li>
+      <li>Hợp lệ: Brain ghi stance vào Trace Log. Context Manager không ghi gì.</li></ul></article>
+
+    <article class="step"><header><span class="num">B2–B3</span><h3>Trần tool call và hypothesis mới</h3></header>
+      <p class="file">brain.py</p>
+      <ul><li>Quá 4 tool call mỗi vòng thì cắt phần dư, ghi notice "anomaly".</li>
+      <li>Hypothesis mới bị từ chối nếu: đã đủ 4 hypothesis mở, trùng id, hoặc <strong>không có tool call nào gắn với nó trong cùng vòng</strong>.</li>
+      <li>Lưu <code>Hypothesis(id, statement, polarity)</code><span class="tag-new">v3</span>.</li></ul></article>
+
+    <article class="step"><header><span class="num">B4</span><h3>Chạy tool call</h3></header>
+      <p class="file">brain.py · tool_registry.validate_input / execute</p>
+      <ul><li>hypothesis_id không tồn tại: từ chối.</li>
+      <li><strong>validate_input</strong> (bảng 4 tool ở mục 4). Lỗi thì ghi dòng ERROR vào Trace Log và ghi notice.</li>
+      <li>Trùng tool và input đã chạy: không chạy lại, ghi notice.</li>
+      <li>Cùng lệnh lỗi 2 lần liên tiếp thì bị khoá.</li>
+      <li>Chạy thành công: <span class="tag-sec">bảo mật: sanitize, check_injection</span> → cắt còn 4000 ký tự → ghi Trace Log, stance để trống. Model sẽ gán stance ở vòng sau.</li></ul></article>
+
+    <article class="step"><header><span class="num">B5–B6</span><h3>Build ② và Observer</h3></header>
+      <p class="file">context_manager.build · observer.check</p>
+      <p>Observer dừng phiên theo thứ tự ưu tiên:</p>
+      <ul><li>admin hủy thủ công;</li><li>đủ 8 vòng;</li><li>quá 300 giây;</li>
+      <li>"cạn tool": model chọn call_tool nhưng không lời gọi nào thật sự chạy;</li>
+      <li>model chọn <code>conclude</code>.</li></ul></article>
+
+    <article class="step"><header><span class="num">B7–B8</span><h3>Trạng thái cuối và lưu</h3></header>
+      <p class="file">validation.derive_final_statuses · result_formatter · storage</p>
+      <ul><li>Tính <code>final_status</code> và <code>original_agent_status</code> (cây quyết định ở mục 3).</li>
+      <li>Ghi <code>agent_rounds</code>: reasoning, stance, hypothesis mới, action, notices, stopped_by.</li>
+      <li>Dừng thì phase = CONCLUDED, trả <code>RoundResult</code> về cho Orchestrator.</li></ul></article>
+  </div>
+</section>
+
+<section>
+  <h2>3. Từ stance tới kết luận</h2>
+  <div class="grid2">
+    <div class="tablebox"><table>
+      <thead><tr><th>Stance của evidence (chỉ tính evidence OK)</th><th>Trạng thái hypothesis</th></tr></thead>
+      <tbody>
+      <tr><td>Có cả support và contradict</td><td class="mono">CONFLICTED</td></tr>
+      <tr><td>Chỉ có support</td><td class="mono">SUPPORTED</td></tr>
+      <tr><td>Chỉ có contradict</td><td class="mono">CONTRADICTED</td></tr>
+      <tr><td>Có evidence nhưng chưa có stance (hoặc toàn lỗi)</td><td class="mono">INSUFFICIENT</td></tr>
+      <tr><td>Chưa có evidence</td><td class="mono">PROPOSED</td></tr>
+      <tr><td colspan="2">Stance của evidence <code>no_match</code> (không tìm thấy) <strong>không được tính</strong><span class="tag-new">05/11</span></td></tr>
+      </tbody></table></div>
+    <div class="diagram"><pre class="mermaid">
+%%{init: {"theme":"neutral"}}%%
+flowchart TB
+  S["Danh sách hypothesis"] --> C1{"Có hypothesis CONFLICTED?"}
+  C1 -->|"có"| CE["CONFLICTING_EVIDENCE"]
+  C1 -->|"không"| C2{"Có pro SUPPORTED<br/>và con SUPPORTED?"}
+  C2 -->|"có"| CE
+  C2 -->|"không"| C3{"Có pro SUPPORTED?"}
+  C3 -->|"không, chỉ có con SUPPORTED"| RJ["REJECTED_WITH_EVIDENCE<br/>(đề xuất loại, admin duyệt)"]
+  C3 -->|"không có gì được ủng hộ"| IB["INSUFFICIENT_BASIS"]
+  C3 -->|"có"| C4{"Đủ 2 nguồn độc lập?<br/>runtime: Tầng 1 count &gt; 0<br/>hoặc traffic mở rộng = support<br/>tĩnh: code/docs/PR = support"}
+  C4 -->|"đủ"| CF["CONFIDENT"]
+  C4 -->|"thiếu"| NM["NEEDS_MONITORING<br/>(original = CONFIDENT)"]
+  classDef v3 fill:#efe8fc,stroke:#7a4fd6,color:#2a1d4a;
+  class C2,C3,C4,RJ v3;
+    </pre></div>
+  </div>
+  <p class="note">Trước v3: hypothesis không có chiều, nên mọi hypothesis SUPPORTED đều tính là xác nhận cạnh. CONFIDENT bắt buộc có bằng chứng traffic "support", chỉ có code thì không đủ.</p>
+</section>
+
+<section>
+  <h2>4. Bốn tool và luật kiểm tra input</h2>
+  <div class="tablebox"><table>
+    <thead><tr><th>Tool</th><th>Input</th><th>Làm gì</th><th>validate_input từ chối khi</th><th>File</th></tr></thead>
+    <tbody>
+    <tr><td class="mono">read_source_code</td><td class="mono">source_service, keyword</td><td><code>grep -rn</code> trong <code>src/&lt;service&gt;/</code> của bản checkout Online Boutique. <span class="tag-new">v3</span> bỏ dòng thuộc file sinh từ .proto và báo số dòng đã bỏ. Kèm cờ stale theo ngày commit cuối</td><td>service không phải source hoặc đích của cạnh; keyword quá 128 ký tự hoặc có ký tự ngoài whitelist</td><td class="mono">tools/source_code.py</td></tr>
+    <tr><td class="mono">read_internal_docs</td><td class="mono">service, keyword</td><td>Lọc README của service theo keyword</td><td>như trên</td><td class="mono">tools/internal_docs.py</td></tr>
+    <tr><td class="mono">read_pr_descriptions</td><td class="mono">service</td><td>Gọi API Server: lấy 30 PR đã đóng gần nhất, giữ PR có file đổi trong <code>src/&lt;service&gt;/</code>. Service ngoài whitelist bị API Server trả 403</td><td>service không phải source hoặc đích của cạnh</td><td class="mono">tools/pr_descriptions.py · api/gatekeeper.py</td></tr>
+    <tr><td class="mono">read_extended_traffic_window</td><td class="mono">edge, window</td><td>Chạy lại <code>collect_traffic</code> của Tầng 1 với cửa sổ dài hơn, trả count, distinct_days, error_ratio</td><td><code>edge</code> khác <code>identity_key</code>; window ngoài khoảng <strong>8–90</strong><span class="tag-new">v3</span> (trước là 1–90)</td><td class="mono">tools/traffic_window.py · wiring.py</td></tr>
+    </tbody></table></div>
+</section>
+
+<section>
+  <h2>5. Tham số đang dùng</h2>
+  <div class="tablebox"><table>
+    <thead><tr><th>Tham số</th><th>Giá trị</th><th>Ý nghĩa</th></tr></thead>
+    <tbody>
+    <tr><td class="mono">max_iterations</td><td class="mono">8</td><td>Số vòng tối đa mỗi phiên</td></tr>
+    <tr><td class="mono">session_timeout_s</td><td class="mono">300</td><td>Thời gian tối đa mỗi phiên</td></tr>
+    <tr><td class="mono">max_open_hypotheses</td><td class="mono">4</td><td>Hypothesis mở song song</td></tr>
+    <tr><td class="mono">max_tool_calls_per_round</td><td class="mono">4</td><td>Tool call mỗi vòng</td></tr>
+    <tr><td class="mono">max_consecutive_tool_errors</td><td class="mono">2</td><td>Cùng lệnh lỗi 2 lần thì khoá</td></tr>
+    <tr><td class="mono">tool_output_char_cap</td><td class="mono">4000</td><td>Cắt output mỗi tool</td></tr>
+    <tr><td class="mono">tier1_window_days <span class="tag-new">v3</span></td><td class="mono">7</td><td>Cửa sổ mở rộng phải lớn hơn số này</td></tr>
+    <tr><td class="mono">stale_threshold_days</td><td class="mono">365</td><td>Source/docs cũ hơn thì đánh dấu stale</td></tr>
+    <tr><td class="mono">TIER2_PROVIDER / TIER2_MODEL</td><td class="mono">openai / gpt-4.1-2025-04-14</td><td>Biến môi trường, mặc định là anthropic</td></tr>
+    </tbody></table></div>
+</section>
+
+<section>
+  <h2>6. Dữ liệu ghi ra</h2>
+  <div class="tablebox"><table>
+    <thead><tr><th>Bảng</th><th>Ai ghi</th><th>Nội dung</th></tr></thead>
+    <tbody>
+    <tr><td class="mono">agent_sessions</td><td>Brain</td><td>Một dòng mỗi phiên: run_id, identity_key của cạnh, phase, cờ hủy thủ công</td></tr>
+    <tr><td class="mono">trace_log</td><td>Brain</td><td>Mọi tool call: input, output đã cắt, stance, trạng thái OK/ERROR, stale, truncated</td></tr>
+    <tr><td class="mono">agent_rounds</td><td>Brain</td><td>Mỗi vòng: reasoning, stance_updates, new_hypotheses, action, notices, stopped_by, stop_reason</td></tr>
+    <tr><td class="mono">llm_usage</td><td>UsageRecordingModelClient</td><td>Token vào, ra, cache của từng lần gọi model</td></tr>
+    <tr><td class="mono">dependency_evidence</td><td>Orchestrator</td><td>tier2_status, tier2_original_status, tier2_session_id của cạnh</td></tr>
+    <tr><td class="mono">agent_tool_call_log</td><td>API Server</td><td>Mỗi lần gatekeeper được gọi: tool, status, lý do, số kết quả, độ trễ</td></tr>
+    </tbody></table></div>
+</section>
+
+<section>
+  <h2>7. Nhật ký thay đổi trên nhánh tier2-run-tooling</h2>
+  <p class="sub">Mọi commit Claude đã đẩy lên nhánh này, so với <code>main</code>. Cột "Quyết định" ghi câu trả lời của Bin trong chat dẫn tới thay đổi.</p>
+  <div class="tablebox"><table>
+    <thead><tr><th>Commit</th><th>Ngày</th><th>Thay đổi</th><th>Lý do</th><th>Quyết định</th></tr></thead>
+    <tbody>
+    <tr><td class="mono">1e165fc</td><td class="mono">02/11</td><td>Ghi token mỗi lần gọi LLM (bảng <code>llm_usage</code>). Thêm script 11 xuất kết quả Tầng 2 và tính recall gộp</td><td>Yêu cầu báo cáo chi phí token và recall Tầng 1 + 2</td><td><span class="pill p-ok">Bin chọn: làm trên nhánh mới</span></td></tr>
+    <tr><td class="mono">4104c9b</td><td class="mono">02/11</td><td>Thêm <code>openai</code> vào requirements của Tầng 1</td><td>Chạy trên VM báo thiếu thư viện</td><td><span class="pill p-ok">Bin: "lỗi sửa đi"</span></td></tr>
+    <tr><td class="mono">9818c99</td><td class="mono">02/11</td><td><code>--end-time</code> cho 08 export và cli_batch: query traffic tại một mốc quá khứ</td><td>Dùng dữ liệu 20–26/10 thay vì chờ 7 ngày</td><td><span class="pill p-ok">Bin chọn phương án B</span></td></tr>
+    <tr><td class="mono">e43b72b</td><td class="mono">02/11</td><td>Thêm <code>OpenAIModelClient</code>, chọn nhà cung cấp bằng <code>TIER2_PROVIDER</code></td><td>Không có Anthropic key</td><td><span class="pill p-ok">Bin chọn: thêm client OpenAI</span></td></tr>
+    <tr><td class="mono">3dbd66d</td><td class="mono">02/11</td><td>Đưa <code>identity_key</code> vào goal</td><td>v1: tool traffic bị từ chối 15/15 lần</td><td><span class="pill p-ok">Bin: "ok sửa đi"</span></td></tr>
+    <tr><td class="mono">e35c9d4</td><td class="mono">02/11</td><td>Harness: cạnh cấy gọi method gRPC nghiệp vụ thật; cạnh thưa chạy theo ngày lịch</td><td>Traffic cấy lỗi 100% (gọi reflection); lịch cạnh thưa bị lệch khi pod khởi động lại</td><td><span class="pill p-warn">Bin chọn sửa kịch bản. Chưa deploy (Azure hết hạn). Phương án "nửa cạnh thưa có env" mình đề xuất đổi thành cấy code, Bin chưa trả lời</span></td></tr>
+    <tr><td class="mono">556df77</td><td class="mono">05/11</td><td>A. Tầng 2: trạng thái <code>REJECTED_WITH_EVIDENCE</code> (chỉ <code>con</code> được ủng hộ), hàng đợi admin có mã <code>AGENT_REJECTED</code>. B. Đo theo hàng đợi: recall hàng đợi, cỡ hàng đợi, đề xuất cho phép / cần review (09), false drop (11). Logic Tầng 1 không đổi, chỉ số cũ giữ nguyên</td><td>Mục tiêu mới: ưu tiên giảm FN, admin duyệt cuối</td><td><span class="pill p-new">Bin duyệt danh sách A + B: "oke"</span></td></tr>
+    <tr><td class="mono">40eda52</td><td class="mono">05/11</td><td>Script benchmark: chặn chạy lại trùng nhãn trước khi gọi LLM; dừng khi hết credit, vẫn ghi kết quả đã chạy</td><td>Lần chạy v3: lỗi trùng mã phiên + 39 phiên lỗi 429. Chỉ đổi script đo, không đổi Tầng 2</td><td><span class="pill p-ok">Bin: "sửa rồi push code lên đi"</span></td></tr>
+    <tr><td class="mono">33861dd</td><td class="mono">05/11</td><td>Kết quả "không tìm thấy" là trung tính: cờ <code>no_match</code> ở 3 tool tìm kiếm, cột mới trong <code>trace_log</code>, Brain từ chối stance, validation bỏ qua</td><td>10/10 phiên dương CONFLICTING ở benchmark v3 do lỗi này. Chấm lại 50 phiên từ vết đã lưu: recall 14/29 → 22/29, FP vẫn 0/21</td><td><span class="pill p-ok">Bin: "cứ sửa đi"</span></td></tr>
+    <tr><td class="mono">cd6134f</td><td class="mono">04/11</td><td>Benchmark bằng chứng code (script 12). Thêm tham số <code>traffic_provider</code> cho <code>build_brain_runner</code></td><td>Tách lỗi dataset khỏi lỗi Tầng 2</td><td><span class="pill p-ok">Bin: "làm thí nghiệm 1 đi"</span></td></tr>
+    <tr><td class="mono">14fce2b</td><td class="mono">05/11</td><td>v3: F1 polarity · F2 corroboration hai nguồn · F3 lọc code sinh · F4 temperature 0 · F5 gọi lại khi sai schema · F6 window &gt; 7</td><td>Kết quả benchmark 04/11</td><td><span class="pill p-new">Bin: "sửa thì sửa lại đi". F2 thay đổi luật đã viết ở Chương 3</span></td></tr>
+    </tbody></table></div>
+  <p class="note">Benchmark v3 mới chạy được 50/90 phiên (hết credit OpenAI). Chưa làm, đang chờ quyết định: chốt ground truth cho cạnh nhiễu; số Tầng 1 theo hàng đợi trên dữ liệu 20–26/10 (cần <code>trial_data_v2/</code> trên Azure); phần path/method của F6; benchmark v3 chưa chạy; tái thiết kế Tầng 2 theo giai đoạn (đang ở giai đoạn 2).</p>
+</section>
+
+</div>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>

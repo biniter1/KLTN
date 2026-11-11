@@ -1,0 +1,119 @@
+{
+  "n_trials": 15,
+  "tier1": {
+    "precision_ci": {
+      "mean": 1.0,
+      "half_width": 0.0,
+      "low": 1.0,
+      "high": 1.0
+    },
+    "recall_ci": {
+      "mean": 0.8333333333333334,
+      "half_width": 0.0,
+      "low": 0.8333333333333334,
+      "high": 0.8333333333333334
+    },
+    "f1_ci": {
+      "mean": 0.9090909090909091,
+      "half_width": 0.0,
+      "low": 0.9090909090909091,
+      "high": 0.9090909090909091
+    },
+    "sparse_recall_ci": {
+      "mean": 0.0,
+      "half_width": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    },
+    "noise_precision_ci": {
+      "mean": 0.0,
+      "half_width": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    }
+  },
+  "b1": {
+    "precision_ci": {
+      "mean": 0.8858387799564269,
+      "half_width": 0.0018690951528695392,
+      "low": 0.8839696848035573,
+      "high": 0.8877078751092965
+    },
+    "recall_ci": {
+      "mean": 0.8629629629629629,
+      "half_width": 0.015887308799391115,
+      "low": 0.8470756541635718,
+      "high": 0.8788502717623541
+    },
+    "f1_ci": {
+      "mean": 0.874074074074074,
+      "half_width": 0.00907846217108065,
+      "low": 0.8649956119029933,
+      "high": 0.8831525362451547
+    },
+    "sparse_recall_ci": {
+      "mean": 0.26666666666666666,
+      "half_width": 0.14298577919452027,
+      "low": 0.1236808874721464,
+      "high": 0.40965244586118693
+    },
+    "noise_precision_ci": {
+      "mean": 0.0,
+      "half_width": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    }
+  },
+  "b2": {
+    "precision_ci": {
+      "mean": 0.8823529411764706,
+      "half_width": 0.0,
+      "low": 0.8823529411764706,
+      "high": 0.8823529411764706
+    },
+    "recall_ci": {
+      "mean": 0.8333333333333334,
+      "half_width": 0.0,
+      "low": 0.8333333333333334,
+      "high": 0.8333333333333334
+    },
+    "f1_ci": {
+      "mean": 0.8571428571428571,
+      "half_width": 0.0,
+      "low": 0.8571428571428571,
+      "high": 0.8571428571428571
+    },
+    "sparse_recall_ci": {
+      "mean": 0.0,
+      "half_width": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    },
+    "noise_precision_ci": {
+      "mean": 0.0,
+      "half_width": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    }
+  },
+  "tier1_vs_b1_recall": {
+    "statistic": 0.0,
+    "p_value": 0.0046777349810472576,
+    "note": null
+  },
+  "tier1_vs_b1_precision": {
+    "statistic": 0.0,
+    "p_value": 0.0004510953476143062,
+    "note": null
+  },
+  "tier1_vs_b2_recall": {
+    "statistic": 0.0,
+    "p_value": 1.0,
+    "note": "Mọi cặp giá trị giống hệt nhau"
+  },
+  "tier1_vs_b2_precision": {
+    "statistic": 0.0,
+    "p_value": 0.00010751117672950055,
+    "note": null
+  }
+}

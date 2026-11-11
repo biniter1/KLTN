@@ -1,0 +1,866 @@
+{
+  "_meta": {
+    "generated_at": "2026-11-02T09:01:00.403169+00:00",
+    "git_commit": "3dbd66d7f880ecff0e551b1281942c1bb3aaa741",
+    "db": "/home/azureuser/kltn-repo/kltn_tier2_v2.sqlite3",
+    "tier2_positive": [
+      "CONFIDENT"
+    ],
+    "note": "Số đo từ lần chạy thật của Batch Orchestrator; script chỉ đọc SQLite."
+  },
+  "summary": {
+    "n_trials": 15,
+    "tier1": {
+      "precision_ci": {
+        "mean": 1.0,
+        "half_width": 0.0,
+        "low": 1.0,
+        "high": 1.0
+      },
+      "recall_ci": {
+        "mean": 0.8333333333333334,
+        "half_width": 0.0,
+        "low": 0.8333333333333334,
+        "high": 0.8333333333333334
+      },
+      "f1_ci": {
+        "mean": 0.9090909090909091,
+        "half_width": 0.0,
+        "low": 0.9090909090909091,
+        "high": 0.9090909090909091
+      }
+    },
+    "tier1_plus_tier2": {
+      "precision_ci": {
+        "mean": 1.0,
+        "half_width": 0.0,
+        "low": 1.0,
+        "high": 1.0
+      },
+      "recall_ci": {
+        "mean": 0.837037037037037,
+        "half_width": 0.007943654399695558,
+        "low": 0.8290933826373414,
+        "high": 0.8449806914367326
+      },
+      "f1_ci": {
+        "mean": 0.9112299465240642,
+        "half_width": 0.004587779011588887,
+        "low": 0.9066421675124753,
+        "high": 0.9158177255356531
+      }
+    },
+    "b1": {
+      "precision_ci": {
+        "mean": 0.8858387799564269,
+        "half_width": 0.0018690951528695392,
+        "low": 0.8839696848035573,
+        "high": 0.8877078751092965
+      },
+      "recall_ci": {
+        "mean": 0.8629629629629629,
+        "half_width": 0.015887308799391115,
+        "low": 0.8470756541635718,
+        "high": 0.8788502717623541
+      },
+      "f1_ci": {
+        "mean": 0.874074074074074,
+        "half_width": 0.00907846217108065,
+        "low": 0.8649956119029933,
+        "high": 0.8831525362451547
+      }
+    },
+    "b2": {
+      "precision_ci": {
+        "mean": 0.8823529411764706,
+        "half_width": 0.0,
+        "low": 0.8823529411764706,
+        "high": 0.8823529411764706
+      },
+      "recall_ci": {
+        "mean": 0.8333333333333334,
+        "half_width": 0.0,
+        "low": 0.8333333333333334,
+        "high": 0.8333333333333334
+      },
+      "f1_ci": {
+        "mean": 0.8571428571428571,
+        "half_width": 0.0,
+        "low": 0.8571428571428571,
+        "high": 0.8571428571428571
+      }
+    },
+    "tier1_plus_tier2_vs_tier1_recall": {
+      "statistic": 0.0,
+      "p_value": 0.31731050786291415,
+      "note": null
+    },
+    "tier1_plus_tier2_vs_tier1_precision": {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "note": "Mọi cặp giá trị giống hệt nhau"
+    },
+    "tier1_plus_tier2_vs_b1_recall": {
+      "statistic": 0.0,
+      "p_value": 0.0081509715935027,
+      "note": null
+    },
+    "tier1_plus_tier2_vs_b1_precision": {
+      "statistic": 0.0,
+      "p_value": 0.0004510953476143062,
+      "note": null
+    },
+    "tier1_plus_tier2_vs_b2_recall": {
+      "statistic": 0.0,
+      "p_value": 0.31731050786291415,
+      "note": null
+    },
+    "tier1_plus_tier2_vs_b2_precision": {
+      "statistic": 0.0,
+      "p_value": 0.00010751117672950055,
+      "note": null
+    },
+    "tier1_vs_b1_recall": {
+      "statistic": 0.0,
+      "p_value": 0.0046777349810472576,
+      "note": null
+    },
+    "tier1_vs_b1_precision": {
+      "statistic": 0.0,
+      "p_value": 0.0004510953476143062,
+      "note": null
+    },
+    "tier1_vs_b2_recall": {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "note": "Mọi cặp giá trị giống hệt nhau"
+    },
+    "tier1_vs_b2_precision": {
+      "statistic": 0.0,
+      "p_value": 0.00010751117672950055,
+      "note": null
+    }
+  },
+  "trials": [
+    {
+      "run_id": "trial-01",
+      "attempt_id": "trial-01.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 1,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 1
+      },
+      "rounds_total": 7,
+      "llm_calls_total": 7,
+      "input_tokens_total": 16965,
+      "output_tokens_total": 2462,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8888888888888888,
+          "recall": 0.8888888888888888,
+          "f1": 0.8888888888888888,
+          "tp": 16,
+          "fp": 2,
+          "fn": 2
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-02",
+      "attempt_id": "trial-02.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 1,
+      "tier2_status_counts": {
+        "NEEDS_MONITORING": 1
+      },
+      "rounds_total": 2,
+      "llm_calls_total": 2,
+      "input_tokens_total": 2617,
+      "output_tokens_total": 428,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8888888888888888,
+          "recall": 0.8888888888888888,
+          "f1": 0.8888888888888888,
+          "tp": 16,
+          "fp": 2,
+          "fn": 2
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-03",
+      "attempt_id": "trial-03.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 1,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 1
+      },
+      "rounds_total": 3,
+      "llm_calls_total": 3,
+      "input_tokens_total": 2459,
+      "output_tokens_total": 660,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8888888888888888,
+          "recall": 0.8888888888888888,
+          "f1": 0.8888888888888888,
+          "tp": 16,
+          "fp": 2,
+          "fn": 2
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-04",
+      "attempt_id": "trial-04.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 1,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 1
+      },
+      "rounds_total": 3,
+      "llm_calls_total": 3,
+      "input_tokens_total": 3550,
+      "output_tokens_total": 925,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-05",
+      "attempt_id": "trial-05.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 2,
+      "tier2_status_counts": {
+        "CONFIDENT": 1,
+        "INSUFFICIENT_BASIS": 1
+      },
+      "rounds_total": 4,
+      "llm_calls_total": 4,
+      "input_tokens_total": 4713,
+      "output_tokens_total": 1179,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "tp": 16,
+          "fp": 0,
+          "fn": 2
+        },
+        "b1": {
+          "precision": 0.8888888888888888,
+          "recall": 0.8888888888888888,
+          "f1": 0.8888888888888888,
+          "tp": 16,
+          "fp": 2,
+          "fn": 2
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-06",
+      "attempt_id": "trial-06.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 2,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 1,
+        "NEEDS_MONITORING": 1
+      },
+      "rounds_total": 11,
+      "llm_calls_total": 11,
+      "input_tokens_total": 29492,
+      "output_tokens_total": 3649,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8888888888888888,
+          "recall": 0.8888888888888888,
+          "f1": 0.8888888888888888,
+          "tp": 16,
+          "fp": 2,
+          "fn": 2
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-07",
+      "attempt_id": "trial-07.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 2,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 2
+      },
+      "rounds_total": 5,
+      "llm_calls_total": 5,
+      "input_tokens_total": 6978,
+      "output_tokens_total": 1357,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8888888888888888,
+          "recall": 0.8888888888888888,
+          "f1": 0.8888888888888888,
+          "tp": 16,
+          "fp": 2,
+          "fn": 2
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-08",
+      "attempt_id": "trial-08.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 2,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 2
+      },
+      "rounds_total": 5,
+      "llm_calls_total": 5,
+      "input_tokens_total": 5396,
+      "output_tokens_total": 1063,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8888888888888888,
+          "recall": 0.8888888888888888,
+          "f1": 0.8888888888888888,
+          "tp": 16,
+          "fp": 2,
+          "fn": 2
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-09",
+      "attempt_id": "trial-09.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 2,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 2
+      },
+      "rounds_total": 7,
+      "llm_calls_total": 7,
+      "input_tokens_total": 12949,
+      "output_tokens_total": 1781,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8888888888888888,
+          "recall": 0.8888888888888888,
+          "f1": 0.8888888888888888,
+          "tp": 16,
+          "fp": 2,
+          "fn": 2
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-10",
+      "attempt_id": "trial-10.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 1,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 1
+      },
+      "rounds_total": 2,
+      "llm_calls_total": 2,
+      "input_tokens_total": 2704,
+      "output_tokens_total": 685,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-11",
+      "attempt_id": "trial-11.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 1,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 1
+      },
+      "rounds_total": 4,
+      "llm_calls_total": 4,
+      "input_tokens_total": 7129,
+      "output_tokens_total": 1114,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-12",
+      "attempt_id": "trial-12.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 1,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 1
+      },
+      "rounds_total": 4,
+      "llm_calls_total": 4,
+      "input_tokens_total": 4699,
+      "output_tokens_total": 940,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-13",
+      "attempt_id": "trial-13.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 1,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 1
+      },
+      "rounds_total": 3,
+      "llm_calls_total": 3,
+      "input_tokens_total": 3234,
+      "output_tokens_total": 606,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-14",
+      "attempt_id": "trial-14.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 0,
+      "tier2_status_counts": {},
+      "rounds_total": null,
+      "llm_calls_total": null,
+      "input_tokens_total": null,
+      "output_tokens_total": null,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    },
+    {
+      "run_id": "trial-15",
+      "attempt_id": "trial-15.a1",
+      "status": "OK",
+      "errors": [],
+      "escalated": 1,
+      "tier2_status_counts": {
+        "INSUFFICIENT_BASIS": 1
+      },
+      "rounds_total": 3,
+      "llm_calls_total": 3,
+      "input_tokens_total": 3372,
+      "output_tokens_total": 730,
+      "metrics": {
+        "tier1": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "tier1_plus_tier2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "tp": 15,
+          "fp": 0,
+          "fn": 3
+        },
+        "b1": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        },
+        "b2": {
+          "precision": 0.8823529411764706,
+          "recall": 0.8333333333333334,
+          "f1": 0.8571428571428571,
+          "tp": 15,
+          "fp": 2,
+          "fn": 3
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="GD1-GD2 Thu thap va gop" id="gd12">
+    <mxGraphModel dx="1200" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="sep" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="665" y="0" as="sourcePoint" />
+            <mxPoint x="665" y="560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="wt" value="Workload Template" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="25" y="22" width="105" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="pod" value="Pod running" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="25" y="107" width="105" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="cm" value="ConfigMap" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="25" y="195" width="105" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="K8S API" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="175" y="107" width="105" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ext" value="&lt;div style=&quot;text-align:center;font-size:12px&quot;&gt;Trích từ pod template&lt;/div&gt;env value&lt;br&gt;configMapKeyRef → giá trị&lt;br&gt;fieldRef, resourceFieldRef → placeholder&lt;br&gt;envFrom (+ prefix)&lt;br&gt;command/args, cả init&lt;br&gt;file configMap, projected&lt;br&gt;annotations&lt;br&gt;Secret ref → &amp;lt;redacted&amp;gt;&lt;br&gt;image ref, digest" style="rounded=0;whiteSpace=wrap;html=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=18;" vertex="1" parent="1">
+          <mxGeometry x="315" y="37" width="175" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="col" value="Collect" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="63" width="105" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="img" value="&lt;b&gt;Image config&lt;/b&gt;&lt;br&gt;tra registry theo digest&lt;br&gt;ENV, ENTRYPOINT, CMD" style="rounded=0;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="530" y="180" width="125" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="raw" value="RAW Item" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="698" y="63" width="105" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="grp" value="&lt;b&gt;Gom theo khóa Container&lt;/b&gt;&lt;br&gt;namespace, workload, container&lt;br&gt;&lt;i&gt;annotation: gắn cả pod&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="828" y="58" width="165" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="genv" value="Gộp biến môi trường&lt;br&gt;image &amp;lt; envFrom &amp;lt; env" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="690" y="195" width="140" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="gcmd" value="Gộp lệnh&lt;br&gt;command/args vs image" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="843" y="195" width="135" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="gdir" value="Đi thẳng&lt;br&gt;file, secret, annotation" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="988" y="195" width="140" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="eff" value="Effective Item" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="852" y="282" width="117" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="act" value="ACTIVE" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="725" y="352" width="105" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="ovr" value="OVERRIDDEN&lt;br&gt;&lt;span style=&quot;font-weight:normal;font-size:10px&quot;&gt;giữ lại, không xóa&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="988" y="352" width="115" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="next" value="&lt;b&gt;Sang bước lọc&lt;/b&gt;&lt;br&gt;(giai đoạn 3)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="845" y="440" width="130" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="wt" target="api"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="152" y="47" /><mxPoint x="152" y="132" /></Array></mxGeometry></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="pod" target="api"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="cm" target="api"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="152" y="220" /><mxPoint x="152" y="132" /></Array></mxGeometry></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="api" target="ext"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;" edge="1" parent="1" source="ext" target="col"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;" edge="1" parent="1" source="ext" target="img"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="img" target="col"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="col" target="raw"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="raw" target="grp"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="grp" target="genv"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="910" y="163" /><mxPoint x="760" y="163" /></Array></mxGeometry></mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="grp" target="gcmd"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="grp" target="gdir"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="910" y="163" /><mxPoint x="1058" y="163" /></Array></mxGeometry></mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="genv" target="eff"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="760" y="268" /><mxPoint x="910" y="268" /></Array></mxGeometry></mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="gcmd" target="eff"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="gdir" target="eff"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1058" y="268" /><mxPoint x="910" y="268" /></Array></mxGeometry></mxCell>
+        <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="eff" target="act"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="777" y="310" /></Array></mxGeometry></mxCell>
+        <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="eff" target="ovr"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1045" y="310" /></Array></mxGeometry></mxCell>
+        <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="act" target="next"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="777" y="467" /></Array></mxGeometry></mxCell>
+        <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="ovr" target="next"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1045" y="467" /></Array></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

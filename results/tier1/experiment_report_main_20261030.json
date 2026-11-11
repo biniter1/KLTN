@@ -1,0 +1,138 @@
+{
+  "_meta": {
+    "ngay_chay": "2026-10-30",
+    "commit_main": "50a99bd6a6009807807851eada9de41ab1c11f07",
+    "ghi_chu_commit": "Commit revert cac079f (chưa push lúc chạy). Cây mã nguồn giống hệt fee1bd9 (merge PR #1, 18/10) — git diff fee1bd9 50a99bd rỗng.",
+    "lenh": "python3 infra/scripts/09_run_experiment.py --out ...  (cấu hình EXPERIMENT_CONFIG, MockSelectorValidator)",
+    "du_lieu": "15 file infra/trial_data/trial-01..15.json xuất 08/10/2026 (trong repo) — chưa có port, traffic_days, series_daily_counts",
+    "trang_thai": "KHÔNG phải số chính thức: dữ liệu cũ (số ngày cạnh nhiều path lấy theo max, port không biết) + validator selector giả",
+    "test_tren_main": {
+      "tier1_inference": 414,
+      "orchestration": 120,
+      "tier2_agent": 180,
+      "infra": 46
+    },
+    "so_voi_lan_chay_sau_PR1": "Trùng khớp: Tier 1 P 1,000 / R 0,870 / F1 0,930 / recall thưa 0,378"
+  },
+  "n_trials": 15,
+  "tier1": {
+    "precision_ci": {
+      "mean": 1.0,
+      "half_width": 0.0,
+      "low": 1.0,
+      "high": 1.0
+    },
+    "recall_ci": {
+      "mean": 0.8703703703703703,
+      "half_width": 0.015012095744741803,
+      "low": 0.8553582746256285,
+      "high": 0.8853824661151122
+    },
+    "f1_ci": {
+      "mean": 0.9304812834224598,
+      "half_width": 0.008670087381989938,
+      "low": 0.9218111960404699,
+      "high": 0.9391513708044498
+    },
+    "sparse_recall_ci": {
+      "mean": 0.3777777777777778,
+      "half_width": 0.1371944580425506,
+      "low": 0.24058331973522723,
+      "high": 0.5149722358203284
+    },
+    "noise_precision_ci": {
+      "mean": 0.0,
+      "half_width": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    }
+  },
+  "b1": {
+    "precision_ci": {
+      "mean": 0.8888888888888888,
+      "half_width": 0.0,
+      "low": 0.8888888888888888,
+      "high": 0.8888888888888888
+    },
+    "recall_ci": {
+      "mean": 0.8888888888888888,
+      "half_width": 0.0,
+      "low": 0.8888888888888888,
+      "high": 0.8888888888888888
+    },
+    "f1_ci": {
+      "mean": 0.8888888888888888,
+      "half_width": 0.0,
+      "low": 0.8888888888888888,
+      "high": 0.8888888888888888
+    },
+    "sparse_recall_ci": {
+      "mean": 0.5333333333333333,
+      "half_width": 0.03821455692334317,
+      "low": 0.49511877640999014,
+      "high": 0.5715478902566765
+    },
+    "noise_precision_ci": {
+      "mean": 0.0,
+      "half_width": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    }
+  },
+  "b2": {
+    "precision_ci": {
+      "mean": 0.8845588235294117,
+      "half_width": 0.008280848354482732,
+      "low": 0.876277975174929,
+      "high": 0.8928396718838945
+    },
+    "recall_ci": {
+      "mean": 0.8222222222222223,
+      "half_width": 0.012738185641114399,
+      "low": 0.8094840365811079,
+      "high": 0.8349604078633367
+    },
+    "f1_ci": {
+      "mean": 0.8521008403361344,
+      "half_width": 0.008934131644071119,
+      "low": 0.8431667086920633,
+      "high": 0.8610349719802055
+    },
+    "sparse_recall_ci": {
+      "mean": 0.0,
+      "half_width": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    },
+    "noise_precision_ci": {
+      "mean": 0.0,
+      "half_width": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    }
+  },
+  "tier1_vs_b1_recall": {
+    "statistic": 0.0,
+    "p_value": 0.025347318677468252,
+    "note": null
+  },
+  "tier1_vs_b1_precision": {
+    "statistic": 0.0,
+    "p_value": 0.00010751117672950055,
+    "note": null
+  },
+  "tier1_vs_b2_recall": {
+    "statistic": 0.0,
+    "p_value": 0.0021721536873098523,
+    "note": null
+  },
+  "tier1_vs_b2_precision": {
+    "statistic": 0.0,
+    "p_value": 0.0003529848692118181,
+    "note": null
+  },
+  "hysteresis_ablation": {
+    "chay_duoc": false,
+    "ly_do": "10_hysteresis_ablation.py dừng ngay: file trial xuất trước 18/10 không có series_daily_counts, nên không cắt được 7 snapshot theo ngày. Cần chạy lại 08_export_trial_data.py trên VM."
+  }
+}

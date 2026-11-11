@@ -1,0 +1,6 @@
+Trial có attempt SUCCESS: 15/15
+  tier1              recall=0.833±0.000  precision=1.000±0.000
+  tier1_plus_tier2   recall=0.837±0.008  precision=1.000±0.000
+  b1                 recall=0.863±0.016  precision=0.886±0.002
+  b2                 recall=0.833±0.000  precision=0.882±0.000
+Cạnh escalate: 19 · kết luận sai (FP/FN): 7 · ghi vào ../tier2_results_v2

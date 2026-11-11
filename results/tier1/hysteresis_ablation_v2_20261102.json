@@ -1,0 +1,130 @@
+{
+  "trial-01": {
+    "days": [
+      "2026-10-20",
+      "2026-10-21",
+      "2026-10-22",
+      "2026-10-23",
+      "2026-10-24",
+      "2026-10-25",
+      "2026-10-26"
+    ],
+    "snapshots": 7,
+    "hysteresis": {
+      "edges": 18,
+      "total_flips": 0,
+      "edges_with_flip": 0,
+      "max_flips_per_edge": 0
+    },
+    "single_threshold": {
+      "edges": 18,
+      "total_flips": 0,
+      "edges_with_flip": 0,
+      "max_flips_per_edge": 0
+    },
+    "flips_hysteresis": {
+      "shared-eval|frontend|frontend|shared-eval|adservice|GRPC|9555": 0,
+      "shared-eval|frontend|frontend|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|frontend|frontend|shared-eval|checkoutservice|GRPC|5050": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|currencyservice|GRPC|7000": 0,
+      "shared-eval|frontend|frontend|shared-eval|currencyservice|GRPC|7000": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|emailservice|GRPC|8080": 0,
+      "shared-eval|recommendationservice|recommendationservice|shared-eval|emailservice|GRPC|8080": 0,
+      "shared-eval|adservice|adservice|shared-eval|frontend|HTTP|8080": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|paymentservice|GRPC|50051": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|frontend|frontend|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|recommendationservice|recommendationservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|emailservice|emailservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|prometheus|prometheus|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|frontend|frontend|shared-eval|recommendationservice|GRPC|8080": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|shippingservice|GRPC|50051": 0,
+      "shared-eval|frontend|frontend|shared-eval|shippingservice|GRPC|50051": 0
+    },
+    "flips_single_threshold": {
+      "shared-eval|frontend|frontend|shared-eval|adservice|GRPC|9555": 0,
+      "shared-eval|frontend|frontend|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|frontend|frontend|shared-eval|checkoutservice|GRPC|5050": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|currencyservice|GRPC|7000": 0,
+      "shared-eval|frontend|frontend|shared-eval|currencyservice|GRPC|7000": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|emailservice|GRPC|8080": 0,
+      "shared-eval|recommendationservice|recommendationservice|shared-eval|emailservice|GRPC|8080": 0,
+      "shared-eval|adservice|adservice|shared-eval|frontend|HTTP|8080": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|paymentservice|GRPC|50051": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|frontend|frontend|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|recommendationservice|recommendationservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|emailservice|emailservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|prometheus|prometheus|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|frontend|frontend|shared-eval|recommendationservice|GRPC|8080": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|shippingservice|GRPC|50051": 0,
+      "shared-eval|frontend|frontend|shared-eval|shippingservice|GRPC|50051": 0
+    }
+  },
+  "trial-02": {
+    "days": [
+      "2026-10-20",
+      "2026-10-21",
+      "2026-10-22",
+      "2026-10-23",
+      "2026-10-24",
+      "2026-10-25",
+      "2026-10-26"
+    ],
+    "snapshots": 7,
+    "hysteresis": {
+      "edges": 18,
+      "total_flips": 0,
+      "edges_with_flip": 0,
+      "max_flips_per_edge": 0
+    },
+    "single_threshold": {
+      "edges": 18,
+      "total_flips": 0,
+      "edges_with_flip": 0,
+      "max_flips_per_edge": 0
+    },
+    "flips_hysteresis": {
+      "shared-eval|frontend|frontend|shared-eval|adservice|GRPC|9555": 0,
+      "shared-eval|frontend|frontend|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|prometheus|prometheus|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|frontend|frontend|shared-eval|checkoutservice|GRPC|5050": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|currencyservice|GRPC|7000": 0,
+      "shared-eval|frontend|frontend|shared-eval|currencyservice|GRPC|7000": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|emailservice|GRPC|8080": 0,
+      "shared-eval|redis-cart|redis-cart|shared-eval|frontend|HTTP|8080": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|paymentservice|GRPC|50051": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|frontend|frontend|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|recommendationservice|recommendationservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|frontend|frontend|shared-eval|recommendationservice|GRPC|8080": 0,
+      "shared-eval|productcatalogservice|productcatalogservice|shared-eval|shippingservice|GRPC|50051": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|shippingservice|GRPC|50051": 0,
+      "shared-eval|frontend|frontend|shared-eval|shippingservice|GRPC|50051": 0,
+      "shared-eval|paymentservice|paymentservice|shared-eval|redis-cart|TCP|6379": 0
+    },
+    "flips_single_threshold": {
+      "shared-eval|frontend|frontend|shared-eval|adservice|GRPC|9555": 0,
+      "shared-eval|frontend|frontend|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|prometheus|prometheus|shared-eval|cartservice|GRPC|7070": 0,
+      "shared-eval|frontend|frontend|shared-eval|checkoutservice|GRPC|5050": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|currencyservice|GRPC|7000": 0,
+      "shared-eval|frontend|frontend|shared-eval|currencyservice|GRPC|7000": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|emailservice|GRPC|8080": 0,
+      "shared-eval|redis-cart|redis-cart|shared-eval|frontend|HTTP|8080": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|paymentservice|GRPC|50051": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|frontend|frontend|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|recommendationservice|recommendationservice|shared-eval|productcatalogservice|GRPC|3550": 0,
+      "shared-eval|frontend|frontend|shared-eval|recommendationservice|GRPC|8080": 0,
+      "shared-eval|productcatalogservice|productcatalogservice|shared-eval|shippingservice|GRPC|50051": 0,
+      "shared-eval|checkoutservice|checkoutservice|shared-eval|shippingservice|GRPC|50051": 0,
+      "shared-eval|frontend|frontend|shared-eval|shippingservice|GRPC|50051": 0,
+      "shared-eval|paymentservice|paymentservice|shared-eval|redis-cart|TCP|6379": 0
+    }
+  }
+}

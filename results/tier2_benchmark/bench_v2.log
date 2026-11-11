@@ -1,0 +1,145 @@
+[r1] pos-01 cartservice->redis-cart DƯƠNG: NEEDS_MONITORING
+[r1] pos-02 checkoutservice->cartservice DƯƠNG: CONFLICTING_EVIDENCE
+[r1] pos-03 checkoutservice->currencyservice DƯƠNG: NEEDS_MONITORING
+[r1] pos-04 checkoutservice->emailservice DƯƠNG: CONFIDENT
+[r1] pos-05 checkoutservice->paymentservice DƯƠNG: NEEDS_MONITORING
+[r1] pos-06 checkoutservice->productcatalogservice DƯƠNG: NEEDS_MONITORING
+[r1] pos-07 checkoutservice->shippingservice DƯƠNG: NEEDS_MONITORING
+[r1] pos-08 frontend->adservice DƯƠNG: NEEDS_MONITORING
+[r1] pos-09 frontend->cartservice DƯƠNG: INSUFFICIENT_BASIS
+[r1] pos-10 frontend->checkoutservice DƯƠNG: CONFIDENT
+[r1] pos-11 frontend->currencyservice DƯƠNG: CONFLICTING_EVIDENCE
+[r1] pos-12 frontend->productcatalogservice DƯƠNG: INSUFFICIENT_BASIS
+[r1] pos-13 frontend->recommendationservice DƯƠNG: INSUFFICIENT_BASIS
+[r1] pos-14 frontend->shippingservice DƯƠNG: NEEDS_MONITORING
+[r1] pos-15 recommendationservice->productcatalogservice DƯƠNG: INSUFFICIENT_BASIS
+[r1] neg-01 adservice->cartservice ÂM: CONFIDENT
+[r1] neg-02 adservice->currencyservice ÂM: INSUFFICIENT_BASIS
+[r1] neg-03 adservice->emailservice ÂM: CONFLICTING_EVIDENCE
+[r1] neg-04 adservice->shippingservice ÂM: INSUFFICIENT_BASIS
+[r1] neg-05 currencyservice->emailservice ÂM: INSUFFICIENT_BASIS
+[r1] neg-06 currencyservice->productcatalogservice ÂM: INSUFFICIENT_BASIS
+[r1] neg-07 emailservice->redis-cart ÂM: INSUFFICIENT_BASIS
+[r1] neg-08 paymentservice->cartservice ÂM: INSUFFICIENT_BASIS
+[r1] neg-09 paymentservice->checkoutservice ÂM: INSUFFICIENT_BASIS
+[r1] neg-10 paymentservice->currencyservice ÂM: CONFLICTING_EVIDENCE
+[r1] neg-11 productcatalogservice->checkoutservice ÂM: INSUFFICIENT_BASIS
+[r1] neg-12 productcatalogservice->recommendationservice ÂM: NEEDS_MONITORING
+[r1] neg-13 recommendationservice->currencyservice ÂM: INSUFFICIENT_BASIS
+[r1] neg-14 shippingservice->adservice ÂM: INSUFFICIENT_BASIS
+[r1] neg-15 shippingservice->frontend ÂM: INSUFFICIENT_BASIS
+[r2] pos-01 cartservice->redis-cart DƯƠNG: CONFLICTING_EVIDENCE
+[r2] pos-02 checkoutservice->cartservice DƯƠNG: CONFIDENT
+[r2] pos-03 checkoutservice->currencyservice DƯƠNG: NEEDS_MONITORING
+[r2] pos-04 checkoutservice->emailservice DƯƠNG: NEEDS_MONITORING
+[r2] pos-05 checkoutservice->paymentservice DƯƠNG: CONFLICTING_EVIDENCE
+[r2] pos-06 checkoutservice->productcatalogservice DƯƠNG: NEEDS_MONITORING
+[r2] pos-07 checkoutservice->shippingservice DƯƠNG: NEEDS_MONITORING
+[r2] pos-08 frontend->adservice DƯƠNG: INSUFFICIENT_BASIS
+[r2] pos-09 frontend->cartservice DƯƠNG: INSUFFICIENT_BASIS
+[r2] pos-10 frontend->checkoutservice DƯƠNG: NEEDS_MONITORING
+[r2] pos-11 frontend->currencyservice DƯƠNG: NEEDS_MONITORING
+[r2] pos-12 frontend->productcatalogservice DƯƠNG: CONFLICTING_EVIDENCE
+[r2] pos-13 frontend->recommendationservice DƯƠNG: NEEDS_MONITORING
+[r2] pos-14 frontend->shippingservice DƯƠNG: CONFLICTING_EVIDENCE
+[r2] pos-15 recommendationservice->productcatalogservice DƯƠNG: NEEDS_MONITORING
+[r2] neg-01 adservice->cartservice ÂM: INSUFFICIENT_BASIS
+[r2] neg-02 adservice->currencyservice ÂM: INSUFFICIENT_BASIS
+[r2] neg-03 adservice->emailservice ÂM: INSUFFICIENT_BASIS
+[r2] neg-04 adservice->shippingservice ÂM: CONFLICTING_EVIDENCE
+[r2] neg-05 currencyservice->emailservice ÂM: INSUFFICIENT_BASIS
+[r2] neg-06 currencyservice->productcatalogservice ÂM: INSUFFICIENT_BASIS
+[r2] neg-07 emailservice->redis-cart ÂM: INSUFFICIENT_BASIS
+[r2] neg-08 paymentservice->cartservice ÂM: CONFIDENT
+[r2] neg-09 paymentservice->checkoutservice ÂM: INSUFFICIENT_BASIS
+[r2] neg-10 paymentservice->currencyservice ÂM: NEEDS_MONITORING
+[r2] neg-11 productcatalogservice->checkoutservice ÂM: NEEDS_MONITORING
+[r2] neg-12 productcatalogservice->recommendationservice ÂM: CONFIDENT
+[r2] neg-13 recommendationservice->currencyservice ÂM: NEEDS_MONITORING
+[r2] neg-14 shippingservice->adservice ÂM: INSUFFICIENT_BASIS
+[r2] neg-15 shippingservice->frontend ÂM: CONFIDENT
+[r3] pos-01 cartservice->redis-cart DƯƠNG: NEEDS_MONITORING
+[r3] pos-02 checkoutservice->cartservice DƯƠNG: NEEDS_MONITORING
+[r3] pos-03 checkoutservice->currencyservice DƯƠNG: NEEDS_MONITORING
+[r3] pos-04 checkoutservice->emailservice DƯƠNG: NEEDS_MONITORING
+[r3] pos-05 checkoutservice->paymentservice DƯƠNG: NEEDS_MONITORING
+[r3] pos-06 checkoutservice->productcatalogservice DƯƠNG: CONFLICTING_EVIDENCE
+[r3] pos-07 checkoutservice->shippingservice DƯƠNG: NEEDS_MONITORING
+[r3] pos-08 frontend->adservice DƯƠNG: NEEDS_MONITORING
+[r3] pos-09 frontend->cartservice DƯƠNG: CONFIDENT
+[r3] pos-10 frontend->checkoutservice DƯƠNG: NEEDS_MONITORING
+[r3] pos-11 frontend->currencyservice DƯƠNG: CONFIDENT
+[r3] pos-12 frontend->productcatalogservice DƯƠNG: NEEDS_MONITORING
+[r3] pos-13 frontend->recommendationservice DƯƠNG: INSUFFICIENT_BASIS
+[r3] pos-14 frontend->shippingservice DƯƠNG: NEEDS_MONITORING
+[r3] pos-15 recommendationservice->productcatalogservice DƯƠNG: NEEDS_MONITORING
+[r3] neg-01 adservice->cartservice ÂM: INSUFFICIENT_BASIS
+[r3] neg-02 adservice->currencyservice ÂM: INSUFFICIENT_BASIS
+[r3] neg-03 adservice->emailservice ÂM: NEEDS_MONITORING
+[r3] neg-04 adservice->shippingservice ÂM: ModelOutputSchemaError: Model Output sai schema: 'neutral' is not one of ['support', 'contradict']
+[r3] neg-05 currencyservice->emailservice ÂM: INSUFFICIENT_BASIS
+[r3] neg-06 currencyservice->productcatalogservice ÂM: INSUFFICIENT_BASIS
+[r3] neg-07 emailservice->redis-cart ÂM: INSUFFICIENT_BASIS
+[r3] neg-08 paymentservice->cartservice ÂM: INSUFFICIENT_BASIS
+[r3] neg-09 paymentservice->checkoutservice ÂM: INSUFFICIENT_BASIS
+[r3] neg-10 paymentservice->currencyservice ÂM: INSUFFICIENT_BASIS
+[r3] neg-11 productcatalogservice->checkoutservice ÂM: NEEDS_MONITORING
+[r3] neg-12 productcatalogservice->recommendationservice ÂM: NEEDS_MONITORING
+[r3] neg-13 recommendationservice->currencyservice ÂM: INSUFFICIENT_BASIS
+[r3] neg-14 shippingservice->adservice ÂM: INSUFFICIENT_BASIS
+[r3] neg-15 shippingservice->frontend ÂM: INSUFFICIENT_BASIS
+{
+ "confident_only": {
+  "tp": 5,
+  "fp": 4,
+  "fn": 40,
+  "tn": 40,
+  "precision": 0.5555555555555556,
+  "recall": 0.1111111111111111
+ },
+ "confident_or_monitoring": {
+  "tp": 31,
+  "fp": 11,
+  "fn": 14,
+  "tn": 33,
+  "precision": 0.7380952380952381,
+  "recall": 0.6888888888888889
+ },
+ "status_counts_pos": {
+  "NEEDS_MONITORING": 26,
+  "CONFLICTING_EVIDENCE": 7,
+  "CONFIDENT": 5,
+  "INSUFFICIENT_BASIS": 7
+ },
+ "status_counts_neg": {
+  "CONFIDENT": 4,
+  "INSUFFICIENT_BASIS": 30,
+  "CONFLICTING_EVIDENCE": 3,
+  "NEEDS_MONITORING": 7
+ },
+ "support_only_generated_code": 8,
+ "cases_inconsistent_across_repeats": [
+  "neg-01",
+  "neg-03",
+  "neg-04",
+  "neg-08",
+  "neg-10",
+  "neg-11",
+  "neg-12",
+  "neg-13",
+  "neg-15",
+  "pos-01",
+  "pos-02",
+  "pos-04",
+  "pos-05",
+  "pos-06",
+  "pos-08",
+  "pos-09",
+  "pos-10",
+  "pos-11",
+  "pos-12",
+  "pos-13",
+  "pos-14",
+  "pos-15"
+ ]
+}
