@@ -2,6 +2,7 @@
 
 | File | Nội dung |
 |---|---|
+| `handover/01–10_*.md` | **Bộ bàn giao đầy đủ** (FACT/DECISION/EXPERIMENT/TODO) |
 | `BAN_GIAO.md` | **Đọc đầu tiên.** Trạng thái mới nhất, số liệu chính thức/tạm, việc tiếp theo, quy tắc làm việc |
 | `TRANG_THAI_CHOT.md` | Nguồn chuẩn trạng thái từng phần (tới 30/10) |
 | `TIER2_MAP.html` | Sơ đồ Tầng 2 theo code tại `556df77` + changelog PR #3 |
