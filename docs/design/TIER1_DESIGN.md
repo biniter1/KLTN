@@ -173,9 +173,10 @@ traffic_class ∈ { BUSINESS, HEALTHCHECK, MONITORING, DNS, CONTROL_PLANE, UNKNO
 | `observed` | nhãn `destination_port` có trong metric (sau khi thêm tagOverride Telemetry — chỉ làm sau khi chụp snapshot) |
 | `observed_log` | access log ztunnel thấy **đúng 1** port cho cặp (bước gộp metrics + log); nhiều port → series metric giữ `None` + cờ `multiple_ports_seen`, **và (chốt 18/11) mỗi port log chưa có trên series metric nào của cặp thành một cạnh TCP riêng, cờ `log_extra_port`** |
 | `inferred_single_port` | Service đích (`destination_service_ref`) chỉ có 1 port → lấy `targetPort` |
-| `inferred_protocol_match` | Service có nhiều port → chọn port có `appProtocol` / tên (`grpc-*`, `http-*`) khớp `protocol` |
-| `config` | **(27/10)** 4 cách trên đều thất bại, config sạch của cặp có đúng 1 port → lấy port đó (cờ `port_from_config`); làm ở bước ghép config (`candidates.fill_port_from_config`) |
-| `unknown` | không chọn được → `port=None`, gắn cờ người duyệt; **không đoán** |
+| `inferred_all_ports` | **(chốt 18/11)** Service đích có nhiều port → **không đoán**: mỗi `targetPort` thành một cạnh riêng, cờ `port_inferred_all`; người duyệt loại port thừa (`annotate_series` nhân bản cả số đếm theo ngày) |
+| `unknown` | không có Service đích → `port=None`, vào hàng đợi `NEEDS_MANUAL_PORT`; **không đoán** |
+
+**Chốt 18/11 — rút còn 3 bước:** (1) quan sát (metric, log) → (2) suy từ Service (1 port: lấy targetPort; nhiều port: mỗi port một cạnh có cờ) → (3) không xác định. **Bỏ** `inferred_protocol_match` (chọn 1 port theo tên giao thức = chặn các port còn lại → FN), bỏ `port_source = config` và `PORT_CONFLICT` của PR #2. Lần chạy 02/11: 107/107 series có port đều là `inferred_single_port`, nên bỏ hai bước này không đổi kết quả đã có.
 
 Mục đích: (1) policy đầu ra cần port (mục 6) — không có port thì phải mở mọi port, trái Zero Trust; (2) đối chiếu với bằng chứng config, vốn đã có port (`targetPort`, CONFIG_EVIDENCE_COLLECTOR bước (d)). Việc tra cứu dùng **chung index cluster** của Collector. Khác bước (d) của Collector: bên đó đã có port trong chuỗi config, chỉ đổi port Service → targetPort; bên traffic chưa có port nào, phải suy từ Service.
 
@@ -438,15 +439,15 @@ Vì traffic đã thu không có nhãn port, port lấy theo mục 2.1b và mang 
 
 | Tình huống | Mã lý do |
 |---|---|
-| `multiple_ports_seen` | `PORT_CONFLICT` |
-| port **suy ra** (`inferred_*`) + `config_port_differs` | `PORT_CONFLICT` |
 | port `None` | `NEEDS_MANUAL_PORT` |
-| port **thấy được** lệch config | không chặn — config lệch đã thành dòng `NOT_OBSERVED` riêng (config dư, mục 1b) |
-| `inferred_protocol_match` không mâu thuẫn | không chặn, `port_source` hiện trên dashboard |
+| `inferred_all_ports` (cờ `port_inferred_all`) | không chặn; dashboard hiện cờ để người duyệt loại port thừa |
+| port lệch config | không chặn — config lệch đã thành dòng `NOT_OBSERVED` riêng (config dư, mục 1b) |
+
+(Chốt 18/11: bỏ `PORT_CONFLICT` — nhiều port thấy được nay đã tách thành nhiều cạnh, không còn "xung đột" phải chọn.)
 
 Hành động: `SUBMIT_PORT` (payload `port` 1..65535 = targetPort pod đích) hoặc `REJECT`. DB cũ có CHECK 11 mã → API khởi động tự dựng lại bảng `human_decisions` (giữ nguyên dữ liệu, `decisions_store.migrate_decision_checks`).
 
-Thứ tự nguồn port giữ nguyên: thấy được (metrics, log) → Service spec (1 port → khớp tên giao thức) → để trống. Hướng mở (chưa làm): dùng port trong config của bên gọi (đã đổi sang targetPort) làm nguồn trước bước suy theo tên giao thức — cần đưa config vào trước bước gộp cạnh.
+Thứ tự nguồn port (chốt 18/11): thấy được (metrics, log) → Service spec (1 port → targetPort; nhiều port → mỗi port một cạnh) → để trống.
 
 ---
 
@@ -502,7 +503,7 @@ Nếu tỷ lệ response lỗi (4xx/5xx) cao bất thường: `unstable = true` 
   "destination_service_ref": {"service_name": "payment", "service_namespace": "default"},
   "protocol": "TCP",
   "port": 8080,                         // null nếu port_source = "unknown"
-  "port_source": "inferred_single_port",// observed | observed_log | inferred_single_port | inferred_protocol_match | config | unknown
+  "port_source": "inferred_single_port",// observed | observed_log | inferred_single_port | inferred_all_ports | unknown
   "scope": "IN_CLUSTER",
   "traffic_class": "BUSINESS",
   "flags": [],                          // ví dụ "claimed_monitoring", "port_unknown"

@@ -77,18 +77,29 @@ def test_port_inferred_from_targetport_not_service_port():
     assert s.port == 8080  # targetPort (port pod thật), không phải port 80 của Service
 
 
-def test_port_inferred_by_protocol_match_on_multi_port_service():
+def test_multi_port_service_yields_one_edge_per_target_port():
+    """Chốt 18/11: Service nhiều port -> không đoán (bỏ khớp giao thức), mỗi targetPort một cạnh, có cờ."""
     ctx = build_cluster_context(_reader())
     s = make_series(dest="multi", dest_ns=NS, port=None, protocol="GRPC",
                     destination_service_ref=ServiceRef("multi", NS))
-    annotate_series([s], ctx)
-    assert (s.port, s.port_source) == (9090, "inferred_protocol_match")
+    out = annotate_series([s], ctx)
+    assert sorted((x.port, x.port_source) for x in out) == [(8080, "inferred_all_ports"), (9090, "inferred_all_ports")]
+    assert all("port_inferred_all" in x.flags for x in out)
 
 
-def test_port_unknown_when_ambiguous_never_guessed():
+def test_multi_port_split_keeps_daily_counts_aligned():
     ctx = build_cluster_context(_reader())
     s = make_series(dest="ambiguous", dest_ns=NS, port=None, protocol="HTTP",
                     destination_service_ref=ServiceRef("ambiguous", NS))
+    daily = [{"2026-10-07": 3}]
+    out = annotate_series([s], ctx, daily)
+    assert [x.port for x in out] == [8080, 9090]
+    assert daily == [{"2026-10-07": 3}, {"2026-10-07": 3}] and daily[0] is not daily[1]
+
+
+def test_port_unknown_without_service_ref():
+    ctx = build_cluster_context(_reader())
+    s = make_series(dest="nowhere", dest_ns=NS, port=None, protocol="TCP", destination_service_ref=None)
     annotate_series([s], ctx)
     assert (s.port, s.port_source) == (None, "unknown")
 

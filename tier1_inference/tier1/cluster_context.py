@@ -19,19 +19,13 @@ chỉ đọc cờ, không gọi cluster.
 
 from __future__ import annotations
 
+import copy
 import fnmatch
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
 from .schema import TrafficSeries, normalize_path
 
-# Tiền tố tên port / appProtocol (quy ước Istio "protocol selection") ứng với protocol
-# của traffic — dùng khi Service có nhiều port (mục 2.1b, inferred_protocol_match).
-_PORT_PROTOCOL_PREFIXES: dict[str, tuple[str, ...]] = {
-    "GRPC": ("grpc", "http2", "h2c"),
-    "HTTP": ("http", "http2", "h2c"),
-    "TCP": ("tcp", "redis", "mongo", "mysql", "postgres", "tls", "kafka"),
-}
 
 # Nhãn pod nhận diện công cụ monitoring (bổ sung cho Service khai ở `monitoring_services`).
 _MONITORING_APP_LABELS = ("prometheus", "vmagent")
@@ -114,47 +108,54 @@ def build_cluster_context(
     return ctx
 
 
-def _port_matches_protocol(spec: PortSpec, protocol: str) -> bool:
-    prefixes = _PORT_PROTOCOL_PREFIXES.get(protocol.upper(), ())
-    for label in (spec.app_protocol, spec.name):
-        if not label:
-            continue
-        low = label.lower()
-        if any(low == p or low.startswith(p + "-") or low.startswith(p + "_") for p in prefixes):
-            return True
-    return False
+def infer_port(series: TrafficSeries, ctx: ClusterContext) -> list[int]:
+    """mục 2.1b (chốt 18/11, 3 bước: quan sát → suy từ Service → không xác định).
 
-
-def infer_port(series: TrafficSeries, ctx: ClusterContext) -> None:
-    """mục 2.1b — chỉ chạy khi `series.port is None`. Không đoán: không chọn được thì để
-    None + `port_source = unknown`."""
+    Chỉ suy khi `series.port is None` (port quan sát được luôn thắng):
+    - Service đích 1 port -> targetPort đó, `inferred_single_port`.
+    - Service đích nhiều port -> KHÔNG đoán một port (bỏ bước khớp giao thức cũ, vì chọn
+      một port là chặn các port còn lại -> FN): gán port đầu, `inferred_all_ports`, cờ
+      `port_inferred_all`, và TRẢ VỀ các targetPort còn lại để caller sinh mỗi port một cạnh.
+    - Không có Service -> giữ None, `port_source = unknown` (người duyệt nhập port)."""
     if series.port is not None:
         if series.port_source == "unknown":
             series.port_source = "observed"
-        return
+        return []
     ref = series.destination_service_ref
     if ref is None:
-        return
+        return []
     ports = ctx.service_ports.get((ref.service_namespace, ref.service_name), [])
-    if len(ports) == 1:
-        series.port = ports[0].target_port
+    targets = sorted({p.target_port for p in ports if p.target_port is not None})
+    if len(targets) == 1:
+        series.port = targets[0]
         series.port_source = "inferred_single_port"
-        return
-    matched = [p for p in ports if _port_matches_protocol(p, series.protocol)]
-    if len(matched) == 1:
-        series.port = matched[0].target_port
-        series.port_source = "inferred_protocol_match"
+        return []
+    if len(targets) > 1:
+        series.port = targets[0]
+        series.port_source = "inferred_all_ports"
+        series.add_flag("port_inferred_all")
+        return targets[1:]
+    return []
 
 
-def annotate_series(series_list: list[TrafficSeries], ctx: Optional[ClusterContext]) -> list[TrafficSeries]:
+def annotate_series(
+    series_list: list[TrafficSeries],
+    ctx: Optional[ClusterContext],
+    daily: Optional[list] = None,
+) -> list[TrafficSeries]:
     """Gắn port suy ra + cờ `probe_path` / `verified_monitoring` / `serviceentry_host`.
-    Sửa tại chỗ và trả lại chính list đó. `ctx=None` -> chỉ chuẩn hóa `port_source`."""
-    for s in series_list:
+    Sửa tại chỗ và trả lại chính list đó. `ctx=None` -> chỉ chuẩn hóa `port_source`.
+
+    Service nhiều port: series được nhân thành mỗi targetPort một series (thêm vào CUỐI
+    `series_list`); nếu truyền `daily` (song song với series_list) thì số đếm theo ngày cũng
+    được nhân theo, để hai list vẫn khớp chỉ số."""
+    extras: list[tuple[int, int]] = []
+    for idx, s in enumerate(series_list):
         if ctx is None:
             if s.port is not None and s.port_source == "unknown":
                 s.port_source = "observed"
             continue
-        infer_port(s, ctx)
+        extras.extend((idx, p) for p in infer_port(s, ctx))
         if s.path is not None and s.path_norm in ctx.probe_paths.get(
             (s.destination_namespace, s.destination_canonical_service), set()
         ):
@@ -163,4 +164,10 @@ def annotate_series(series_list: list[TrafficSeries], ctx: Optional[ClusterConte
             s.add_flag("verified_monitoring")
         if ctx.matches_serviceentry(s.destination_service_host):
             s.add_flag("serviceentry_host")
+    for idx, port in extras:
+        clone = copy.deepcopy(series_list[idx])
+        clone.port = port
+        series_list.append(clone)
+        if daily is not None:
+            daily.append(dict(daily[idx]))
     return series_list

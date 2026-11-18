@@ -193,7 +193,7 @@ class TrafficSeries:
 
     # --- 15/10/2026 (TIER1_DESIGN.md mục 2.1) ---
     # port lấy từ đâu: observed (nhãn metric) | observed_log (access log ztunnel) |
-    # inferred_single_port | inferred_protocol_match (suy từ Service spec) | unknown
+    # inferred_single_port | inferred_all_ports (suy từ Service spec) | unknown
     port_source: str = "unknown"
     # các ngày (YYYY-MM-DD) có traffic trong cửa sổ — gộp cạnh lấy HỢP các ngày (mục 2b)
     traffic_days: list[str] = field(default_factory=list)

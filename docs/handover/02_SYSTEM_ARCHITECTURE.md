@@ -68,7 +68,7 @@ Thứ tự trong `run_tier1`: chuẩn hóa series → phân loại từng series
 - `identity_key` 7 phần: (ns nguồn, svc nguồn, SA nguồn, ns đích, svc đích, protocol, port). `pair_key` 4 phần: (ns, svc, ns đích, svc đích); đích chưa phân giải = `raw:<host>`.
 - Điểm: `sigmoid(−1,0 + 0,9·recency + 1,1·log_volume + 1,0·distinct_days_ratio − 1,6·healthcheck_ratio − 1,6·monitoring_ratio + 0,8·config_match_strength)`; `volume_reference = 1.674.596` cố định.
 - Trạng thái: count=0 → NOT_OBSERVED (config sạch → người duyệt; UNRESOLVED/NOT_FOUND → Tầng 2) · toàn nhiễu → monitoring đã xác minh tự mở / còn lại người duyệt · ≥50% UNKNOWN → UNKNOWN · hysteresis θ_promote 0,68 / θ_demote 0,58.
-- Port: `observed` → `observed_log` → `inferred_single_port` → `inferred_protocol_match` → (`config`, chỉ ở PR #2) → `unknown`.
+- Port (chốt 18/11, 3 bước): quan sát (`observed`, `observed_log`; mỗi port log một cạnh) → suy từ Service (`inferred_single_port`; nhiều port → `inferred_all_ports`, mỗi port một cạnh) → `unknown` (`NEEDS_MANUAL_PORT`). Đã bỏ `inferred_protocol_match`, `config`, `PORT_CONFLICT`.
 
 ## 5. Tầng 2 — code thật tại `556df77` (v3)
 

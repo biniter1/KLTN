@@ -7,7 +7,7 @@ DONE chỉ ghi khi có bằng chứng (commit, test, hoặc lần chạy thật 
 | Nhánh | HEAD | Nội dung | Trạng thái |
 |---|---|---|---|
 | `main` | `50a99bd` | Merge PR #1 (`fee1bd9`, Tầng 1 code lại theo chốt 15/10 + VictoriaMetrics/Logs), revert `cac079f` | Code chuẩn |
-| `tier1-port-gate` (PR #2) | — | Cổng port ở cửa ra (`NEEDS_MANUAL_PORT`, `PORT_CONFLICT`), `NOISE_ONLY_REVIEW`, `port_source = config` | **Chưa merge. Không merge khi Bin chưa nói.** Không có trong số liệu |
+| `tier1-port-gate` (PR #2) | — | Cổng port ở cửa ra (`NEEDS_MANUAL_PORT`, `PORT_CONFLICT`), `NOISE_ONLY_REVIEW`, `port_source = config` | **Chưa merge. Không merge khi Bin chưa nói.** Không có trong số liệu. Khi merge: gỡ `PORT_CONFLICT` và `port_source = config` (chốt 18/11) |
 | `tier1-refactor-victoria` | — | Nhánh của PR #1 | Đã merge |
 | `tier2-run-tooling` (PR #3) | `c62e37a` | Mọi việc Tầng 2 từ 02/11 + tài liệu bàn giao | Chưa merge |
 

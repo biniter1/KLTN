@@ -109,7 +109,7 @@ Config Evidence Collector **không phải một tầng**: nó chỉ cấp bằng
   - **MONITORING theo danh tính đã xác minh:** so (namespace, service account) lấy từ SPIFFE principal với tập tự phát hiện từ `prometheus_url` + label `app.kubernetes.io/name=prometheus` + khai báo trong config. Chỉ trùng tên thì gắn cờ `claimed_monitoring`, không trừ điểm (chống giả tên). **Yêu cầu:** Prometheus phải chạy trong mesh. Công cụ khác (Grafana, Kiali…) là phần mở rộng.
   - **Thí nghiệm — phương án (a):** khai báo SA `prometheus` của harness nhiễu monitoring vào danh sách đã xác minh trong config thí nghiệm; báo cáo ghi rõ.
   - **HEALTHCHECK 3 tầng:** path lấy từ probe trong pod spec (chính, cờ `probe_path`) + danh sách mặc định ngắn (`/health`, `/healthz`, `/readyz`, `/livez`, `/ready`, `/live`, `/metrics`, `grpc.health.v1.Health`) + đội vận hành tự thêm (`healthcheck_extra_paths`, YAML, sau này trên dashboard). So khớp theo segment cuối, không theo tiền tố. **gRPC reflection KHÔNG nằm trong danh sách mặc định** (chốt 18/10, xem trên).
-  - **Port:** `port = None` + `port_source`, thứ tự: `observed` (nhãn metric) → `observed_log` (access log ztunnel thấy đúng 1 port) → `inferred_single_port` → `inferred_protocol_match` (suy từ Service spec qua `destination_service_ref`) → `config` (27/10, xem dưới) → `unknown`. Cạnh `unknown` không được sinh "allow mọi port".
+  - **Port:** `port = None` + `port_source`, thứ tự: `observed` (nhãn metric) → `observed_log` (access log ztunnel thấy đúng 1 port) → `inferred_single_port` / `inferred_all_ports` (suy từ Service spec qua `destination_service_ref`; Service nhiều port → mỗi port một cạnh, cờ `port_inferred_all` — **chốt 18/11, bỏ khớp giao thức và nguồn config**) → `unknown`. Cạnh `unknown` không được sinh "allow mọi port".
   - **Ngày:** gộp cạnh lấy **hợp** `traffic_days`, không lấy max.
   - **Bỏ đặc trưng `protocol_diversity`** (luôn bằng 0,5 vì protocol nằm trong khóa cạnh); bù **bias −1,2 → −1,0** để điểm không đổi. Còn 6 đặc trưng.
 - **ĐÃ CHỐT (15/10) — khớp traffic với config, ✅ đã code (PR #1, 18/10)** (chi tiết: `TIER1_DESIGN.md` mục 1b):
@@ -139,7 +139,7 @@ Config Evidence Collector **không phải một tầng**: nó chỉ cấp bằng
 - **ĐÃ CHỐT (22/10) — cổng port ở cửa ra, ✅ đã code, 🟡 PR #2 (`tier1-port-gate`) chưa merge** (chi tiết: `TIER1_DESIGN.md` mục 2.1b, 6, dòng 23):
   - Tầng 1 **không chặn** cạnh thiếu/mâu thuẫn port ở cửa vào: vẫn chấm điểm và quyết trạng thái ("có quan hệ không" độc lập với "mở cửa nào"), chỉ gắn cờ `port_unresolved`, `config_port_differs`, `multiple_ports_seen`.
   - Hàng đợi review (vai Planner) chặn **ở cửa ra**, chỉ với cạnh sắp sinh rule (STRONG, Tầng 2 CONFIDENT, NEEDS_MANUAL_SELECTOR, cạnh có `auto_allow_reason`):
-    - `multiple_ports_seen`, hoặc port **suy ra** (`inferred_*`) + `config_port_differs` → `PORT_CONFLICT`;
+    - ~~`multiple_ports_seen` / port suy ra lệch config → `PORT_CONFLICT`~~ — **bỏ (18/11)**: nhiều port nay tách thành nhiều cạnh; khi merge PR #2 phải gỡ `PORT_CONFLICT` và `port_source = config`;
     - port `None` → `NEEDS_MANUAL_PORT`;
     - port **thấy được** lệch config → không chặn (config lệch đã thành dòng `NOT_OBSERVED` riêng).
   - Người duyệt xử lý bằng hành động `SUBMIT_PORT` (payload `port` 1..65535 = targetPort pod đích) hoặc `REJECT`. API tự dựng lại bảng `human_decisions` cho DB cũ (giữ dữ liệu).

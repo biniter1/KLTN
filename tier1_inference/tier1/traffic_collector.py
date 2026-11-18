@@ -500,6 +500,6 @@ def collect_traffic(
         daily.extend(kept_daily)
         log_added = len(kept)
 
-    annotate_series(series, context)
+    annotate_series(series, context, daily)
     return CollectionResult(series=series, scrape_gap=scrape_gap, daily_counts=daily,
                             log_rows_read=log_rows, log_series_added=log_added)
