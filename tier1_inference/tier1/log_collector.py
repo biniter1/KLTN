@@ -275,8 +275,14 @@ def merge_log_series(
     1. Series metric chưa có port + log thấy ĐÚNG 1 port cho cùng (nguồn, SA, đích) ->
        gán port đó, `port_source = observed_log`. Log thấy nhiều port -> giữ None, cờ
        `multiple_ports_seen` (để suy từ Service spec ở bước sau, hoặc người duyệt chọn).
-    2. Series log của cặp ĐÃ có series metric -> bỏ (cùng kết nối, đã được đếm theo
-       request); series log của cặp CHƯA có metric -> giữ, là cạnh TCP mới.
+    2. Series log của cặp CHƯA có metric -> giữ, là cạnh TCP mới.
+    3. Series log của cặp ĐÃ có metric:
+       - port của nó đã có trên một series metric của cặp -> bỏ (cùng kết nối, đã được
+         đếm theo request);
+       - port chưa series metric nào của cặp mang -> GIỮ thành cạnh TCP riêng, cờ
+         `log_extra_port` (chốt 18/11: port thấy trong log là quan sát thật, bỏ đi là mất
+         một port đang được dùng -> bị chặn khi bật default-deny). Trường hợp nhiều port ở
+         bước 1 rơi vào đây: mọi port đều thành cạnh riêng.
 
     Trả về (series log được giữ, daily_counts tương ứng)."""
     log_daily = log_daily if log_daily is not None else [{} for _ in log_series]
@@ -284,10 +290,11 @@ def merge_log_series(
     for s in log_series:
         ports_by_edge.setdefault(_edge5(s), set()).add(s.port)
 
-    metric_edges = set()
+    metric_ports: dict[tuple, set[int]] = {}
     for s in metric_series:
-        metric_edges.add(_edge5(s))
+        ports_here = metric_ports.setdefault(_edge5(s), set())
         if s.port is not None:
+            ports_here.add(s.port)
             continue
         ports = ports_by_edge.get(_edge5(s))
         if not ports:
@@ -295,12 +302,18 @@ def merge_log_series(
         if len(ports) == 1:
             s.port = next(iter(ports))
             s.port_source = "observed_log"
+            ports_here.add(s.port)
         else:
             s.add_flag("multiple_ports_seen")
 
     kept, kept_daily = [], []
     for s, d in zip(log_series, log_daily):
-        if _edge5(s) not in metric_edges:
+        edge = _edge5(s)
+        if edge not in metric_ports:
+            kept.append(s)
+            kept_daily.append(d)
+        elif s.port not in metric_ports[edge]:
+            s.add_flag("log_extra_port")
             kept.append(s)
             kept_daily.append(d)
     return kept, kept_daily

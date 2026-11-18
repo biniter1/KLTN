@@ -171,7 +171,7 @@ traffic_class ∈ { BUSINESS, HEALTHCHECK, MONITORING, DNS, CONTROL_PLANE, UNKNO
 | `port_source` | Cách có port |
 |---|---|
 | `observed` | nhãn `destination_port` có trong metric (sau khi thêm tagOverride Telemetry — chỉ làm sau khi chụp snapshot) |
-| `observed_log` | access log ztunnel thấy **đúng 1** port cho cặp (bước gộp metrics + log); nhiều port → giữ `None` + cờ `multiple_ports_seen` |
+| `observed_log` | access log ztunnel thấy **đúng 1** port cho cặp (bước gộp metrics + log); nhiều port → series metric giữ `None` + cờ `multiple_ports_seen`, **và (chốt 18/11) mỗi port log chưa có trên series metric nào của cặp thành một cạnh TCP riêng, cờ `log_extra_port`** |
 | `inferred_single_port` | Service đích (`destination_service_ref`) chỉ có 1 port → lấy `targetPort` |
 | `inferred_protocol_match` | Service có nhiều port → chọn port có `appProtocol` / tên (`grpc-*`, `http-*`) khớp `protocol` |
 | `config` | **(27/10)** 4 cách trên đều thất bại, config sạch của cặp có đúng 1 port → lấy port đó (cờ `port_from_config`); làm ở bước ghép config (`candidates.fill_port_from_config`) |

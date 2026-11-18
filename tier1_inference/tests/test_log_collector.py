@@ -95,8 +95,24 @@ def test_merge_multiple_ports_leaves_port_unknown_with_flag():
                          source_workload_namespace=NS, port=None, protocol="TCP", path=None)
     metric.source_service_account = "checkoutservice"
     logs = collect_ztunnel_flows(FakeLogsClient([_row(port=6379), _row(port=26379)]), now=NOW)
-    merge_log_series([metric], logs.series, logs.daily_counts)
+    kept, kept_daily = merge_log_series([metric], logs.series, logs.daily_counts)
     assert metric.port is None and "multiple_ports_seen" in metric.flags
+    # chốt 18/11: không bỏ port nào — mỗi port thấy trong log thành một cạnh TCP riêng
+    assert sorted(s.port for s in kept) == [6379, 26379]
+    assert all("log_extra_port" in s.flags for s in kept) and len(kept_daily) == 2
+
+
+def test_merge_keeps_log_port_not_covered_by_metric():
+    """Metric đã có port 7070; log thấy 7070 và 9090 -> 7070 trùng (bỏ), 9090 giữ thành cạnh riêng."""
+    metric = make_series(source="frontend", dest="cartservice", dest_ns=NS, source_ns=NS,
+                         source_workload_namespace=NS, port=7070, protocol="GRPC")
+    metric.source_service_account = "frontend"
+    logs = collect_ztunnel_flows(FakeLogsClient([_row(src="frontend", dst="cartservice", port=7070),
+                                                 _row(src="frontend", dst="cartservice", port=9090)]), now=NOW)
+    kept, _ = merge_log_series([metric], logs.series, logs.daily_counts)
+    assert metric.port == 7070
+    assert [(s.port, s.port_source) for s in kept] == [(9090, "observed_log")]
+    assert "log_extra_port" in kept[0].flags
 
 
 def test_collect_traffic_with_log_client_adds_log_only_edges():
