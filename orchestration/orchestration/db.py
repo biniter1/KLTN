@@ -16,6 +16,11 @@
     human_decisions            | API Server                  | APPEND-ONLY (trigger chặn
                                |                             |  UPDATE/DELETE)
     agent_tool_call_log        | API Server (gatekeeper)     | APPEND-ONLY (trigger)
+    emergency_exceptions       | API Server (exceptions_store| APPEND-ONLY (trigger) — khai
+                               |  .py)                       |  báo; trạng thái suy từ quyết
+                               |                             |  định + thời gian (không sửa dòng)
+    config_change_log,         | Continuity Monitor          | APPEND-ONLY (trigger), khử
+    blocked_connection_log     |  (continuity/store.py)      |  trùng theo auditID / event_key
 
 `ensure_schema()` chỉ chạy DDL (CREATE ... IF NOT EXISTS / ALTER ADD COLUMN) — không ghi
 dữ liệu — nên cả 2 tiến trình đều gọi được lúc khởi động mà không vi phạm luật trên.
@@ -47,6 +52,9 @@ REASON_CODES = (
     "UNATTRIBUTED_CONFIG_CHANGE",
     "EMERGENCY_EXCEPTION_EXPIRED",
     "STALE_PERMISSION",
+    # 19/11 (báo cáo mục 3.10.4): kết nối bị chặn sau khi áp dụng -> người quản trị quyết:
+    # hợp lệ (APPROVE + exception_id đã mở) hay sự cố bảo mật (REJECT + incident_note).
+    "BLOCKED_CONNECTION",
 )
 
 ACTIONS = (
@@ -173,6 +181,124 @@ LEFT JOIN human_decisions d ON d.decision_id = (
 """
 
 
+# MIGRATION_PLANNER_DESIGN.md mục 2.2-2.4 + báo cáo mục 3.10.4-3.10.5 (chốt 19/11).
+CONTINUITY_SCHEMA = """
+-- Sổ đăng ký ngoại lệ khẩn cấp (Bảng 3.9). APPEND-ONLY: chỉ ghi lời khai báo. Trạng thái
+-- (ACTIVE / EXPIRED / REVOKED / MADE_PERMANENT) và hạn hiện hành SUY RA lúc đọc từ
+-- expires_at + quyết định của người (human_decisions, target_resource =
+-- 'emergency_exception/<id>') + thời điểm hiện tại -> không cần tiến trình nào UPDATE.
+CREATE TABLE IF NOT EXISTS emergency_exceptions (
+    exception_id             TEXT PRIMARY KEY,
+    requested_by             TEXT NOT NULL,
+    reason                   TEXT NOT NULL,
+    ticket                   TEXT NOT NULL,
+    source_namespace         TEXT NOT NULL,
+    source_service           TEXT NOT NULL,
+    source_service_account   TEXT,
+    destination_namespace    TEXT NOT NULL,
+    destination_service      TEXT NOT NULL,
+    protocol                 TEXT NOT NULL,
+    port                     INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+    source_pod_selector      TEXT NOT NULL,       -- JSON matchLabels
+    destination_pod_selector TEXT NOT NULL,       -- JSON matchLabels
+    resource_kind            TEXT NOT NULL,       -- 'NetworkPolicy'
+    resource_name            TEXT NOT NULL,       -- tên policy ngoại lệ (ở ns nguồn + ns đích)
+    blocked_flow_key         TEXT,                -- kết nối bị chặn đã dẫn tới ngoại lệ này
+    created_at               TEXT NOT NULL,
+    expires_at               TEXT NOT NULL
+);
+
+CREATE TRIGGER IF NOT EXISTS emergency_exceptions_no_update
+BEFORE UPDATE ON emergency_exceptions
+BEGIN SELECT RAISE(ABORT, 'emergency_exceptions là append-only: gia hạn/đóng = ghi quyết định MỚI'); END;
+
+CREATE TRIGGER IF NOT EXISTS emergency_exceptions_no_delete
+BEFORE DELETE ON emergency_exceptions
+BEGIN SELECT RAISE(ABORT, 'emergency_exceptions là append-only'); END;
+
+-- Mọi thay đổi chính sách mạng thật, đọc từ Kubernetes Audit Log (mục 2.3-2.4).
+CREATE TABLE IF NOT EXISTS config_change_log (
+    change_id          TEXT PRIMARY KEY,
+    audit_id           TEXT NOT NULL UNIQUE,      -- auditID của sự kiện -> nạp lại không trùng
+    resource_kind      TEXT NOT NULL,
+    resource_namespace TEXT NOT NULL,
+    resource_name      TEXT NOT NULL,
+    change_type        TEXT NOT NULL CHECK (change_type IN ('CREATE', 'UPDATE', 'DELETE')),
+    source             TEXT NOT NULL CHECK (source IN ('GITOPS', 'IMPERATIVE')),
+    actor              TEXT NOT NULL,
+    exception_label    TEXT,                      -- nhãn kltn.zt/exception-id trong requestObject
+    git_commit_sha     TEXT,
+    changed_at         TEXT NOT NULL,
+    detected_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_config_change_resource
+    ON config_change_log (resource_kind, resource_namespace, resource_name);
+
+CREATE TRIGGER IF NOT EXISTS config_change_log_no_update
+BEFORE UPDATE ON config_change_log
+BEGIN SELECT RAISE(ABORT, 'config_change_log là append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS config_change_log_no_delete
+BEFORE DELETE ON config_change_log
+BEGIN SELECT RAISE(ABORT, 'config_change_log là append-only'); END;
+
+-- Kết nối bị chặn sau khi áp dụng chính sách (mục 3.10.4) — flow log của CNI hoặc log ztunnel.
+CREATE TABLE IF NOT EXISTS blocked_connection_log (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_key              TEXT NOT NULL UNIQUE,  -- băm nội dung sự kiện -> nạp lại không trùng
+    flow_key               TEXT NOT NULL,         -- 'ns|workload|ns|workload|proto|port'
+    observed_at            TEXT NOT NULL,
+    source_namespace       TEXT,
+    source_workload        TEXT,
+    source_service_account TEXT,
+    source_ip              TEXT,
+    destination_namespace  TEXT,
+    destination_workload   TEXT,
+    destination_ip         TEXT,
+    protocol               TEXT,
+    port                   INTEGER,
+    reporter               TEXT NOT NULL,         -- cilium | calico | ztunnel | generic
+    detail                 TEXT,                  -- JSON: lý do chặn, policy, ...
+    ingested_at            TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_blocked_flow ON blocked_connection_log (flow_key, observed_at);
+
+CREATE TRIGGER IF NOT EXISTS blocked_connection_log_no_update
+BEFORE UPDATE ON blocked_connection_log
+BEGIN SELECT RAISE(ABORT, 'blocked_connection_log là append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS blocked_connection_log_no_delete
+BEFORE DELETE ON blocked_connection_log
+BEGIN SELECT RAISE(ABORT, 'blocked_connection_log là append-only'); END;
+"""
+
+
+def _migrate_human_decisions_check(conn: sqlite3.Connection) -> None:
+    """File DB cũ có CHECK(reason_code IN ...) thiếu reason_code mới -> dựng lại bảng, chép
+    nguyên dữ liệu (không mất, không sửa quyết định nào), dựng lại trigger append-only.
+    SQLite không ALTER được CHECK nên đây là cách duy nhất."""
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='human_decisions'").fetchone()
+    if row is None or all(f"'{c}'" in row[0] for c in REASON_CODES):
+        return
+    new_sql = ORCHESTRATION_SCHEMA.split("CREATE TABLE IF NOT EXISTS human_decisions (", 1)[1].split(");", 1)[0]
+    conn.execute("BEGIN")
+    try:
+        # RENAME viết lại tham chiếu trong view -> bỏ view trước, ORCHESTRATION_SCHEMA dựng lại ngay sau
+        conn.execute("DROP VIEW IF EXISTS dependency_current_state")
+        conn.execute("DROP TRIGGER IF EXISTS human_decisions_no_update")
+        conn.execute("DROP TRIGGER IF EXISTS human_decisions_no_delete")
+        conn.execute("ALTER TABLE human_decisions RENAME TO human_decisions_pre_migration")
+        conn.execute(f"CREATE TABLE human_decisions ({new_sql})")
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(human_decisions_pre_migration)")]
+        col_list = ", ".join(cols)
+        conn.execute(f"INSERT INTO human_decisions ({col_list}) SELECT {col_list} FROM human_decisions_pre_migration")
+        conn.execute("DROP TABLE human_decisions_pre_migration")
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
 def connect(db_path: str | Path) -> sqlite3.Connection:
     """Kết nối đọc/ghi, WAL, autocommit (isolation_level=None) — mỗi câu ghi commit ngay
     để tiến trình kia (Batch <-> API Server) đọc thấy real-time, không giữ transaction dài."""
@@ -204,7 +330,9 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     collector_store.ensure_quality_log_table(conn)
     conn.executescript(tier2_storage._SCHEMA)
     tier2_storage.migrate(conn)
+    _migrate_human_decisions_check(conn)
     conn.executescript(ORCHESTRATION_SCHEMA)
+    conn.executescript(CONTINUITY_SCHEMA)
 
 
 def open_db(db_path: str | Path) -> sqlite3.Connection:

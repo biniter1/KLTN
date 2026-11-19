@@ -102,3 +102,8 @@ Script từ chối chạy lại cùng `--label` (exit 2) và dừng khi hết cr
 
 ### Deploy
 Không có deploy production. "Deploy" = chạy script infra trên VM.
+
+
+## Cập nhật 19/11 — Continuity Monitor
+- **FACT**: đã có mã nguồn + test (orchestration 175 test pass) cho sổ ngoại lệ khẩn cấp (`POST/GET /exceptions`, sinh 2 NetworkPolicy, hạn tối đa 7 ngày), đọc Kubernetes Audit Log → `UNATTRIBUTED_CONFIG_CHANGE`, log kết nối bị chặn (Cilium/Calico/ztunnel/generic) → `BLOCKED_CONNECTION`, CLI quét định kỳ `orchestration.cli_continuity`.
+- **TODO**: chưa chạy trên cụm — cần bật Audit Log cho kube-apiserver của kind và có nguồn log kết nối bị chặn. Không có số liệu nào trong Chương 4 dựa trên phần này.

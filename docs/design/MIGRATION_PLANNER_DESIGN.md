@@ -130,6 +130,8 @@ Gốc rễ: hệ thống suy luận từ **hành vi quan sát được** (traffi
 
 ### 2.2. Kênh chính thức cho ngoại lệ khẩn cấp — `emergency_exceptions`
 
+> **Hiện thực 19/11** (`orchestration/README.md` mục Continuity Monitor). Khác bản thiết kế dưới đây ở 3 điểm: (1) `status` KHÔNG lưu mà suy ra lúc đọc từ `expires_at` + `human_decisions` + thời gian hiện tại, nên không job nào phải ghi `EXPIRED`; (2) bản ghi lưu phạm vi cạnh (nguồn, đích, giao thức, 1 cổng) + ticket theo Bảng 3.9 báo cáo, công cụ tự sinh 2 NetworkPolicy ngoại lệ có nhãn `kltn.zt/exception-id`; (3) thêm reason code `BLOCKED_CONNECTION` cho kết nối bị chặn sau khi áp dụng (báo cáo 3.10.4).
+
 Thay vì để hành động khẩn cấp lẫn vào traffic bình thường rồi hy vọng hệ thống "đủ giỏi" nhận ra, bắt hành động đó phải tự khai báo qua 1 kênh riêng, có hạn:
 
 ```jsonc

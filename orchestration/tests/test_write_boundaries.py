@@ -17,11 +17,23 @@ _WRITE_RE = re.compile(r"\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM
 
 BATCH_OWNED = {"dependency_evidence", "pipeline_run_log", "collection_quality_log", "config_raw_items",
                "config_extractions", "config_evidence", "llm_extraction_cache", "agent_rounds", "trace_log", "llm_usage"}
-API_OWNED = {"human_decisions", "agent_tool_call_log"}
+API_OWNED = {"human_decisions", "agent_tool_call_log", "emergency_exceptions"}
+CONTINUITY_OWNED = {"config_change_log", "blocked_connection_log"}
+
+
+def _source(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    if path.name == "db.py":
+        # migration CHECK của human_decisions (chép nguyên dữ liệu sang bảng dựng lại) là ngoại lệ
+        # DUY NHẤT, được kiểm riêng ở test_db_migration_is_the_only_db_write
+        start = text.index("def _migrate_human_decisions_check")
+        end = text.index("\ndef ", start + 1)
+        text = text[:start] + text[end:]
+    return text
 
 
 def _written_tables(path: Path) -> set[str]:
-    return set(_WRITE_RE.findall(path.read_text(encoding="utf-8")))
+    return set(_WRITE_RE.findall(_source(path)))
 
 
 def _py_files(*dirs: Path) -> list[Path]:
@@ -57,3 +69,29 @@ def test_api_does_not_import_batch_writers():
         for forbidden in ("insert_results", "insert_quality_log", "insert_config_evidence", "apply_tier2_result",
                           "from ..batch", "PipelineRunLog"):
             assert forbidden not in text, f"{path.name} import/gọi {forbidden}"
+
+
+def test_db_migration_is_the_only_db_write():
+    text = (ORCH / "db.py").read_text(encoding="utf-8")
+    body = text[text.index("def _migrate_human_decisions_check"):]
+    body = body[:body.index("\ndef ")]
+    assert set(_WRITE_RE.findall(body)) == {"human_decisions", "human_decisions_pre_migration"}
+    assert not (_written_tables(ORCH / "db.py") & (API_OWNED | CONTINUITY_OWNED | BATCH_OWNED))
+
+
+def test_only_exceptions_store_writes_emergency_exceptions():
+    writers = {p.name for p in _py_files(ROOT / "orchestration") if "tests" not in p.parts
+               and "emergency_exceptions" in _written_tables(p)}
+    assert writers == {"exceptions_store.py"}
+
+
+def test_only_continuity_store_writes_its_logs():
+    for table in CONTINUITY_OWNED:
+        writers = {p.relative_to(ORCH).as_posix() for p in _py_files(ROOT / "orchestration")
+                   if "tests" not in p.parts and table in _written_tables(p)}
+        assert writers == {"continuity/store.py"}, table
+
+
+@pytest.mark.parametrize("path", _py_files(API), ids=lambda p: p.name)
+def test_api_server_never_writes_continuity_logs(path):
+    assert not (_written_tables(path) & CONTINUITY_OWNED)

@@ -6,7 +6,7 @@ Cài đặt `ORCHESTRATION_DESIGN.md`, áp luôn các cập nhật của `DASHBO
 
 Cùng chuẩn với `tier1_inference/` và `tier2_agent/`: test kiểu fixture/factory
 (`tests/conftest.py`), không cần cluster, Prometheus, LLM hay GitHub thật. Hiện có
-**120 test, coverage khoảng 93%**. Phần chưa cover là 2 CLI và các lớp gọi hạ tầng thật.
+**175 test, coverage khoảng 96%** (19/11). Phần chưa cover là 2 CLI gốc và các lớp gọi hạ tầng thật.
 
 ```bash
 cd orchestration
@@ -126,11 +126,10 @@ Exit code: `0` = SUCCESS, `1` = FAILED (lý do ghi trong `pipeline_run_log`). C�
    `payload.note`.
 2. **Bảng action cho từng reason_code** (`api/review.py::REASONS`) là phần diễn giải từ cột
    "Hành động con người cần làm" của bảng mục 2. Xem nhanh qua `GET /reason-codes`.
-3. **5 reason_code chưa có module sinh ra**: `POLICY_*` (Policy Impact Validator),
-   `UNATTRIBUTED_CONFIG_CHANGE`, `EMERGENCY_EXCEPTION_EXPIRED`, `STALE_PERMISSION`
-   (Continuity Monitor). Schema và `POST /decisions` đã nhận đủ, nhưng `/review-queue` chưa
-   tự sinh 5 loại này. `POST /policy-impact-check` và các bảng `config_change_log`,
-   `emergency_exceptions` chưa làm vì Migration Planner chưa được code.
+3. **3 reason_code chưa có module sinh ra**: `POLICY_*` (Policy Impact Validator) và
+   `STALE_PERMISSION`. Schema và `POST /decisions` đã nhận đủ. `POST /policy-impact-check`
+   chưa làm. (19/11: `UNATTRIBUTED_CONFIG_CHANGE`, `EMERGENCY_EXCEPTION_EXPIRED`,
+   `BLOCKED_CONNECTION` đã được Continuity Monitor sinh — xem mục dưới.)
 4. **CONFIG_ONLY_UNRESOLVED bị `08_export_trial_data.py::split_shared_collection` loại khỏi
    mọi trial.** Record FOUND_UNRESOLVED có dest = None, nên `pair_key` không khớp owner_map.
    Orchestrator đã thêm luật khớp lại qua `raw_host == "<dest>-nonexistent"` (đúng quy ước
@@ -146,6 +145,44 @@ Exit code: `0` = SUCCESS, `1` = FAILED (lý do ghi trong `pipeline_run_log`). C�
 7. **Chưa có xác thực người review.** `decided_by` do client tự khai (phạm vi PoC).
 8. **Bước bị kill giữa chừng** (Ctrl+C, máy ảo reboot) sẽ đứng ở `RUNNING` mãi. Dashboard
    nên hiển thị kèm `started_at` để người xem tự nhận ra.
+
+## Continuity Monitor — ngoại lệ khẩn cấp, Audit Log, kết nối bị chặn (19/11)
+
+Hiện thực báo cáo mục 3.10.4–3.10.5 (Bảng 3.9) và `MIGRATION_PLANNER_DESIGN.md` mục 2.2–2.6.
+
+| Phần | Code | Ghi chú |
+|---|---|---|
+| Sổ đăng ký ngoại lệ | bảng `emergency_exceptions` (`db.py`), ghi DUY NHẤT ở `api/exceptions_store.py` | append-only (trigger). Trường bắt buộc: người mở, lý do, ticket, phạm vi (ns/svc nguồn, ns/svc đích, giao thức, 1 cổng), hạn dùng |
+| Khai báo + sinh policy | `POST /exceptions`, `GET /exceptions[/{id}[/policy]]`, `api/exceptions.py` | hạn tối đa 7 ngày (`ApiSettings.max_exception_ttl`). Trả 2 NetworkPolicy (ingress ở ns đích, egress ở ns nguồn) mang nhãn `kltn.zt/exception-id`; **người quản trị tự `kubectl apply`**, công cụ không ghi vào cụm |
+| Trạng thái ngoại lệ | `exceptions.effective_state` | SUY RA lúc đọc từ hạn + quyết định (`EXTEND_EXCEPTION` cần `new_expires_at` ≤ 7 ngày + `reason` mới; `REVOKE`; `MAKE_PERMANENT` cần `gitops_ref`). Quá hạn → `EMERGENCY_EXCEPTION_EXPIRED` trong `/review-queue` tới khi có quyết định. **Không tự gỡ.** Ưu tiên thấp nếu Tầng 1 còn thấy cạnh đó `OBSERVED_STRONG`, cao nếu không |
+| Audit Log | `continuity/audit.py` → `config_change_log` | giữ create/update/patch/delete thành công trên `networkpolicies`, `authorizationpolicies`. `GITOPS` nếu actor là controller Argo CD/Flux (`--gitops-actor`), còn lại `IMPERATIVE` |
+| Quy trách nhiệm | `readers.list_config_changes` | quy được nếu GITOPS, hoặc đúng policy của 1 ngoại lệ (tên hoặc nhãn, đúng ns) trong thời gian còn hiệu lực; xóa policy ngoại lệ luôn hợp lệ. Còn lại → `UNATTRIBUTED_CONFIG_CHANGE` (1 việc / resource; sửa lại sau quyết định thì nổi lên lại) |
+| Kết nối bị chặn | `continuity/blocked.py` → `blocked_connection_log` | đọc Cilium Hubble, Calico flow log, ztunnel (file hoặc thẳng từ VictoriaLogs), định dạng chung. Gộp theo `flow_key` → `BLOCKED_CONNECTION`: `APPROVE` bắt buộc kèm `exception_id` đã khai (hợp lệ → mở ngoại lệ), `REJECT` bắt buộc `incident_note` (sự cố bảo mật). Bị chặn lại sau quyết định thì báo lại |
+| Quét định kỳ | `python -m orchestration.cli_continuity` | nạp log (khử trùng theo `auditID`/`event_key`), in việc đang mở; exit 2 nếu còn việc mức cao (để cron gửi cảnh báo) |
+
+```bash
+# khai báo ngoại lệ, lấy YAML để áp dụng
+curl -s -X POST localhost:8080/exceptions -H 'content-type: application/json' -d '{
+  "requested_by":"bin","reason":"sự cố thanh toán","ticket":"INC-42",
+  "source_namespace":"shared-eval","source_service":"checkoutservice",
+  "destination_namespace":"shared-eval","destination_service":"paymentservice",
+  "protocol":"GRPC","port":50051,"expires_at":"2026-11-21T00:00:00Z"}'
+curl -s localhost:8080/exceptions/<id>/policy | kubectl apply -f -
+
+# quét định kỳ (cron)
+python -m orchestration.cli_continuity --db ../kltn.sqlite3 \
+    --audit-log /var/log/kubernetes/audit/audit.log \
+    --victorialogs-url http://localhost:9428 --since-hours 24
+```
+
+Điều kiện trên cụm thật (CHƯA làm trên cụm kind hiện tại): bật Audit Log cho kube-apiserver
+(`--audit-policy-file` ghi ít nhất mức `Metadata` cho `networkpolicies`; mức `Request` để có
+nhãn), và có một nguồn log kết nối bị chặn (CNI có flow log như Cilium/Calico, hoặc
+AuthorizationPolicy của Istio để ztunnel ghi "policy rejection").
+
+Điểm mở: chưa ghép `git_commit_sha` (chỉ dựa actor GitOps); chưa xác thực người khai báo
+(`requested_by` do client tự khai, như `decided_by`); file DB cũ được tự migrate CHECK của
+`human_decisions` khi khởi động (giữ nguyên dữ liệu, có test).
 
 ## Chưa kiểm chứng trên hạ tầng thật
 

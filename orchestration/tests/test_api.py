@@ -224,6 +224,15 @@ def test_latest_decision_wins_in_current_state(client, seed_edges):
 # ---------------------------------------------------------------------------
 
 KEY = f"{NS}|frontend|frontend|{NS}|cartservice|GRPC|7070"
+
+
+def declaration(**over) -> dict:
+    body = {"requested_by": "bin", "reason": "sự cố thanh toán", "ticket": "INC-12",
+            "source_namespace": NS, "source_service": "frontend", "destination_namespace": NS,
+            "destination_service": "cartservice", "protocol": "TCP", "port": 7070,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()}
+    body.update(over)
+    return body
 FUTURE = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
 
 
@@ -239,10 +248,15 @@ FUTURE = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
     ("POLICY_UNSUPPORTED_BY_EVIDENCE", {"resource_kind": "NetworkPolicy", "namespace": NS, "name": "p"}, "APPROVE", {}),
     ("UNATTRIBUTED_CONFIG_CHANGE", {"resource_kind": "Deployment", "namespace": NS, "name": "frontend"},
      "ATTRIBUTE", {"owner": "team-web"}),
-    ("EMERGENCY_EXCEPTION_EXPIRED", {"exception_id": "exc_12"}, "EXTEND_EXCEPTION", {"new_expires_at": FUTURE}),
+    ("EMERGENCY_EXCEPTION_EXPIRED", {"exception_id": "SEED"}, "EXTEND_EXCEPTION",
+     {"new_expires_at": FUTURE, "reason": "sự cố #12 chưa xong"}),
     ("STALE_PERMISSION", {"identity_key": KEY}, "REVOKE", {}),
+    ("BLOCKED_CONNECTION", {"flow_key": f"{NS}|frontend|{NS}|cartservice|TCP|7070"}, "REJECT",
+     {"incident_note": "không có lý do nghiệp vụ"}),
 ])
 def test_each_reason_code_accepts_its_valid_action(client, reason, target, action, payload):
+    if target.get("exception_id") == "SEED":
+        target = {"exception_id": client.post("/exceptions", json=declaration()).json()["exception_id"]}
     resp = client.post("/decisions", json={"reason_code": reason, "target_ref": target, "decided_by": "bin",
                                            "action": action, "payload": payload})
     assert resp.status_code == 201, resp.text
@@ -259,7 +273,15 @@ def test_each_reason_code_accepts_its_valid_action(client, reason, target, actio
      "OVERRIDE_WITH_JUSTIFICATION", {"justification": "ok"}, "quá ngắn"),
     ("POLICY_WOULD_BREAK", {"identity_key": KEY}, "REJECT", {}, "resource_kind"),
     ("EMERGENCY_EXCEPTION_EXPIRED", {"exception_id": "e"}, "EXTEND_EXCEPTION",
-     {"new_expires_at": "2020-01-01T00:00:00+00:00"}, "tương lai"),
+     {"new_expires_at": "2020-01-01T00:00:00+00:00", "reason": "x"}, "tương lai"),
+    ("EMERGENCY_EXCEPTION_EXPIRED", {"exception_id": "e"}, "EXTEND_EXCEPTION", {"new_expires_at": FUTURE}, "reason"),
+    ("EMERGENCY_EXCEPTION_EXPIRED", {"exception_id": "e"}, "EXTEND_EXCEPTION",
+     {"new_expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(), "reason": "x"}, "tối đa"),
+    ("EMERGENCY_EXCEPTION_EXPIRED", {"exception_id": "e"}, "MAKE_PERMANENT", {}, "gitops_ref"),
+    ("EMERGENCY_EXCEPTION_EXPIRED", {"exception_id": "exc_khong_co"}, "REVOKE", {}, "sổ đăng ký"),
+    ("BLOCKED_CONNECTION", {"flow_key": "a|b"}, "REJECT", {"incident_note": "x"}, "6 phần"),
+    ("BLOCKED_CONNECTION", {"flow_key": "a|b|c|d|TCP|1"}, "REJECT", {}, "incident_note"),
+    ("BLOCKED_CONNECTION", {"flow_key": "a|b|c|d|TCP|1"}, "APPROVE", {"exception_id": "exc_khong_co"}, "sổ đăng ký"),
     ("UNATTRIBUTED_CONFIG_CHANGE", {"resource_kind": "Deployment", "namespace": NS, "name": "x"}, "ATTRIBUTE", {}, "owner"),
     ("TOOL_ADMIN_ATTENTION", {"tier2_session_id": "s"}, "APPROVE", {}, "note"),
     ("STALE_PERMISSION", {"identity_key": "khong-dung-dinh-dang"}, "REVOKE", {}, "7 phần"),
@@ -282,7 +304,7 @@ def test_decided_by_required(client):
 
 def test_reason_codes_catalogue(client):
     cat = client.get("/reason-codes").json()
-    assert len(cat) == 12  # 11 reason_code gốc + AGENT_REJECTED (05/11)
+    assert len(cat) == 13  # 11 reason_code gốc + AGENT_REJECTED (05/11) + BLOCKED_CONNECTION (19/11)
     assert cat["EMERGENCY_EXCEPTION_EXPIRED"]["allowed_actions"] == ["EXTEND_EXCEPTION", "MAKE_PERMANENT", "REVOKE"]
     assert cat["STALE_PERMISSION"]["generated_by_review_queue"] is False
 

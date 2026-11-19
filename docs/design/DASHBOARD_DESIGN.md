@@ -134,6 +134,7 @@ PHẦN 2 — ZERO TRUST CONTINUITY MONITOR (chạy liên tục SAU khi enforce)
 | `UNATTRIBUTED_CONFIG_CHANGE` | Continuity Monitor mục 2.5 | Gán chủ sở hữu / thu hồi / hợp thức hoá qua GitOps |
 | `EMERGENCY_EXCEPTION_EXPIRED` | Continuity Monitor mục 2.2 | Gia hạn / thu hồi / chuyển `MADE_PERMANENT` |
 | `STALE_PERMISSION` | Continuity Monitor mục 2.8 | Xem xét thu hồi rule không còn traffic hỗ trợ |
+| `BLOCKED_CONNECTION` *(19/11)* | Continuity Monitor (log kết nối bị chặn, báo cáo 3.10.4) | Hợp lệ → mở ngoại lệ khẩn cấp rồi `APPROVE` kèm `exception_id`; không hợp lệ → `REJECT` kèm `incident_note` (sự cố bảo mật) |
 
 **Schema `human_decisions` tổng quát hoá**: thay cho giả định ngầm "chỉ duyệt/từ chối". Vẫn append-only, vẫn CHỈ API Server ghi, không đổi nguyên tắc gốc.
 
@@ -340,7 +341,7 @@ Continuity Monitor: (resource_kind, namespace, name) — đối chiếu chéo v�
 - Ngưỡng thời gian khớp `git_commit_sha` với `config_change_log` khi có độ trễ GitOps controller: chưa có giá trị placeholder, cần đo thực nghiệm (`MIGRATION_PLANNER_DESIGN.md` mục 4).
 - **(v2) Action cho `TOOL_ADMIN_ATTENTION`**: enum action không có ACKNOWLEDGE. Code đang diễn giải `APPROVE` = "đã xử lý xong", bắt buộc `payload.note`. Chờ Bin xác nhận.
 - **(v2) Bảng action hợp lệ cho từng reason_code** (code: `api/review.py`, xem nhanh qua `GET /reason-codes`) là diễn giải từ cột "Hành động con người cần làm" ở mục 2. Chờ Bin rà.
-- **(v2) 5 reason_code của Policy Impact Validator / Continuity Monitor**: schema và `POST /decisions` đã nhận đủ, nhưng hàng đợi chưa tự sinh vì 2 module đó chưa có code.
+- **(v2) 5 reason_code của Policy Impact Validator / Continuity Monitor**: schema và `POST /decisions` đã nhận đủ, nhưng hàng đợi chưa tự sinh vì 2 module đó chưa có code. *(19/11: Continuity Monitor đã sinh `UNATTRIBUTED_CONFIG_CHANGE`, `EMERGENCY_EXCEPTION_EXPIRED`, `BLOCKED_CONNECTION`; còn `POLICY_*`, `STALE_PERMISSION`.)*
 - **(v2.1) Trình sửa quy tắc công ty trên giao diện**: sau 29/12. Trước đó nạp từ YAML, dashboard chỉ hiển thị bộ quy tắc + phiên bản đang dùng.
 - **(v2.1) Có cần "thử quy tắc" (dry-run) trước khi lưu không**: tức chạy bộ quy tắc mới trên config của attempt gần nhất và hiện số candidate tìm thêm/mất đi. Hữu ích nhưng chưa chốt.
 

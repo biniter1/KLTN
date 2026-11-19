@@ -4,16 +4,16 @@ Mỗi `reason_code` có:
   - `target_kind`: loại đối tượng mà quyết định trỏ tới (cạnh dependency / tài nguyên K8s /
     phiên Tier 2 / ngoại lệ khẩn cấp) -> quyết định shape `target_ref` hợp lệ.
   - `actions`: tập action hợp lệ — ánh xạ từ cột "Hành động con người cần làm" của bảng mục 2.
-  - `source`: module sinh ra loại việc này. 5 loại cuối (Policy Impact Validator, Continuity
-    Monitor) CHƯA có module sinh — schema + POST /decisions đã nhận đủ, nhưng
-    /review-queue hiện chỉ tự sinh 6 loại đầu (xem README "Phạm vi").
+  - `source`: module sinh ra loại việc này. 19/11: Continuity Monitor đã sinh
+    UNATTRIBUTED_CONFIG_CHANGE, EMERGENCY_EXCEPTION_EXPIRED, BLOCKED_CONNECTION. Còn
+    POLICY_* (Policy Impact Validator) và STALE_PERMISSION chưa có module sinh.
 """
 
 from __future__ import annotations
 
 import ipaddress
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from ..db import ACTIONS, REASON_CODES
@@ -21,7 +21,7 @@ from ..db import ACTIONS, REASON_CODES
 
 @dataclass(frozen=True)
 class ReasonSpec:
-    target_kind: str            # "edge" | "resource" | "agent_session" | "exception"
+    target_kind: str            # "edge" | "resource" | "agent_session" | "exception" | "blocked_flow"
     actions: frozenset
     source: str
     urgency: str                # "high" | "medium" | "low" — thứ tự hiển thị hàng đợi
@@ -52,12 +52,16 @@ REASONS: dict[str, ReasonSpec] = {
         "resource", frozenset({"APPROVE", "REJECT", "OVERRIDE_WITH_JUSTIFICATION"}),
         "Policy Impact Validator", "medium", False),
     "UNATTRIBUTED_CONFIG_CHANGE": ReasonSpec("resource", frozenset({"ATTRIBUTE", "REVOKE", "APPROVE"}),
-                                             "Continuity Monitor mục 2.5", "high", False),
+                                             "Continuity Monitor mục 2.5", "high", True),
     "EMERGENCY_EXCEPTION_EXPIRED": ReasonSpec(
         "exception", frozenset({"EXTEND_EXCEPTION", "REVOKE", "MAKE_PERMANENT"}),
-        "Continuity Monitor mục 2.2", "high", False),
+        "Continuity Monitor mục 2.2", "high", True),
     "STALE_PERMISSION": ReasonSpec("edge", frozenset({"REVOKE", "APPROVE"}),
                                    "Continuity Monitor mục 2.8", "low", False),
+    # 19/11 (báo cáo 3.10.4): APPROVE = kết nối hợp lệ, đã mở ngoại lệ (payload.exception_id);
+    # REJECT = không hợp lệ -> sự cố bảo mật (payload.incident_note).
+    "BLOCKED_CONNECTION": ReasonSpec("blocked_flow", frozenset({"APPROVE", "REJECT"}),
+                                     "Continuity Monitor (log kết nối bị chặn)", "high", True),
 }
 
 assert set(REASONS) == set(REASON_CODES), "REASONS phải phủ đúng mọi reason_code của db.py"
@@ -111,12 +115,17 @@ def normalize_target(reason_code: str, target_ref: dict) -> NormalizedTarget:
     if kind == "agent_session":
         session_id = _require_str(target_ref, "tier2_session_id", "target_ref")
         return NormalizedTarget(None, None, f"agent_session/{session_id}")
+    if kind == "blocked_flow":
+        flow_key = _require_str(target_ref, "flow_key", "target_ref")
+        if flow_key.count("|") != 5:
+            raise DecisionValidationError("target_ref.flow_key phải có dạng 6 phần 'ns|workload|ns|workload|proto|port'")
+        return NormalizedTarget(None, None, f"blocked_flow/{flow_key}")
     exception_id = _require_str(target_ref, "exception_id", "target_ref")
     return NormalizedTarget(None, None, f"emergency_exception/{exception_id}")
 
 
 def validate_payload(action: str, payload: dict, *, now: Optional[datetime] = None,
-                     reason_code: Optional[str] = None) -> dict:
+                     reason_code: Optional[str] = None, max_exception_ttl: timedelta = timedelta(days=7)) -> dict:
     """Payload bắt buộc theo action (mục 2: "payload tuỳ action — vd selector YAML, hạn mới,
     ghi chú lý do ghi đè"). Trả payload đã chuẩn hoá."""
     if not isinstance(payload, dict):
@@ -148,6 +157,13 @@ def validate_payload(action: str, payload: dict, *, now: Optional[datetime] = No
             expires = expires.replace(tzinfo=timezone.utc)
         if expires <= now:
             raise DecisionValidationError("payload.new_expires_at phải ở tương lai")
+        if expires - now > max_exception_ttl:
+            raise DecisionValidationError(
+                f"payload.new_expires_at vượt hạn tối đa {max_exception_ttl.days} ngày — cần lâu hơn thì MAKE_PERMANENT")
+        payload["new_expires_at"] = expires.astimezone(timezone.utc).isoformat()
+        _require_str(payload, "reason", "payload")   # gia hạn phải khai lý do MỚI (mục 3.10.5)
+    elif action == "MAKE_PERMANENT":
+        _require_str(payload, "gitops_ref", "payload")  # PR/commit hợp thức hóa
     elif action == "OVERRIDE_WITH_JUSTIFICATION":
         justification = _require_str(payload, "justification", "payload")
         if len(justification) < 10:
@@ -157,11 +173,17 @@ def validate_payload(action: str, payload: dict, *, now: Optional[datetime] = No
 
     if reason_code == "TOOL_ADMIN_ATTENTION":
         _require_str(payload, "note", "payload")
+    if reason_code == "BLOCKED_CONNECTION":
+        if action == "APPROVE":
+            _require_str(payload, "exception_id", "payload")   # hợp lệ -> đã mở ngoại lệ có hạn
+        else:
+            _require_str(payload, "incident_note", "payload")  # không hợp lệ -> sự cố bảo mật
     return payload
 
 
 def validate_decision(reason_code: str, action: str, target_ref: dict, payload: dict,
-                      *, now: Optional[datetime] = None) -> tuple[NormalizedTarget, dict]:
+                      *, now: Optional[datetime] = None,
+                      max_exception_ttl: timedelta = timedelta(days=7)) -> tuple[NormalizedTarget, dict]:
     if reason_code not in REASONS:
         raise DecisionValidationError(f"reason_code không hợp lệ: {reason_code!r}")
     if action not in ACTIONS:
@@ -171,7 +193,8 @@ def validate_decision(reason_code: str, action: str, target_ref: dict, payload: 
         raise DecisionValidationError(
             f"action {action} không áp dụng cho {reason_code} — hợp lệ: {sorted(spec.actions)}")
     target = normalize_target(reason_code, target_ref)
-    return target, validate_payload(action, payload, now=now, reason_code=reason_code)
+    return target, validate_payload(action, payload, now=now, reason_code=reason_code,
+                                    max_exception_ttl=max_exception_ttl)
 
 
 def edge_review_reasons(row: dict, sensitive_namespaces: frozenset) -> list[str]:
