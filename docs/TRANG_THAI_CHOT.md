@@ -277,3 +277,9 @@ Có 2 lớp: lớp A chỉ đọc (phục vụ nghiên cứu) và lớp B review
 | `claude/DASHBOARD_DESIGN.md` | Đã cập nhật lên v2.1 ngày 12/10 (màn hình Config Collector, Cấu hình Collector, Traffic Collector). Phần thêm 15/10 (cột `port_source`, cờ, danh sách healthcheck/monitoring) mới ghi ở mục 3.8 file này. |
 | `claude/MIGRATION_PLANNER_DESIGN.md` | Vẫn đúng. Là nguồn chuẩn cho mục 3.6–3.7. |
 | Code trong KB (`tier1_inference/`, `tier2_agent/`) | Đồng bộ từ `main` ngày 30/10 (ghi đè 108 file, thêm 10 file trước đó KB chưa có: `ablation.py`, `cluster_context.py`, `log_collector.py`, `trial_io.py` + 6 file test; xóa `tier1/normalize.py`). `orchestration/` và `infra/` trên KB chưa đồng bộ. Code thay đổi của PR #2 chưa lên KB. |
+
+## Ngoại lệ khẩn cấp (chốt 19/11, thiết kế, chưa hiện thực)
+- Kết nối bị chặn sau khi áp dụng: chặn thật, ghi log, báo admin. Hợp lệ → mở bằng ngoại lệ khẩn cấp; không hợp lệ → sự cố bảo mật.
+- Mọi ngoại lệ phải khai vào sổ đăng ký (repo GitOps hoặc DB API server): người mở, phạm vi (nguồn ns/SA, đích ns/svc, giao thức, cổng), lý do + ticket, thời điểm mở, ngày hết hạn (bắt buộc, tối đa khởi tạo 7 ngày), trạng thái.
+- Continuity Monitor đối chiếu Audit Log với sổ: NetworkPolicy không quy về commit GitOps hay mục còn hiệu lực → báo ngay. Quá hạn → đánh dấu, báo lại tới khi admin hợp thức hóa / gia hạn (khai lý do mới) / đóng. Không tự gỡ.
+- Báo cáo: mục 3.10.5, Bảng 3.9 (bản v6).
